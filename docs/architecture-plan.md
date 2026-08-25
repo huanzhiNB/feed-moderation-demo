@@ -191,7 +191,10 @@ currently-assigned `game_id` before acting on any deferred callback.
           yes → no-op
   ```
   This makes `PlaybackCoordinator` driven by two independent event sources (scroll settle,
-  and visible-set changes), not scroll alone.
+  and visible-set changes), not scroll alone. **The "compute the new centered item" step can
+  legitimately find nothing** — the removed item may have been the last one visible, or the
+  snapshot may be mid-transition with zero cells laid out yet — so `indexPathForItem(at:)`
+  returning `nil` here must resolve to "nothing is playing," not a force-unwrap or crash.
 - Nice-to-have, likely worth a line item in "what I cut": pause on
   `UIApplicationDidEnterBackground`. Not explicit in the written requirements, but is
   implied by "nothing keeps running off screen."
@@ -285,6 +288,14 @@ scope per the assignment).
   page (using fixture JSON, not a live server).
 - `Codable` decoding for both response shapes — bare array (`/game/feed`) vs
   `{code,message,data}` envelope, snake_case keys, and `code != 0` mapped to a typed error.
+- **The actual Combine publisher chain in `FeedViewModel`, not only the pure derivation
+  function.** README calls out "data flows through a stream" as a graded property, and a
+  pure-function test proves the filtering *logic* is right without proving the
+  `CombineLatest3` wiring is connected correctly — publish a change on `FeedRepository` /
+  `ModerationStore` and assert `FeedViewModel.visibleItems` updates through the real
+  pipeline. If the pipeline includes `.receive(on: DispatchQueue.main)`, the test can't
+  assert synchronously right after `.send()` — use an `XCTestExpectation` fulfilled inside
+  the `sink`, not a bare assertion, or the test will read a stale value (or hang).
 
 **Don't test:** WKWebView pool mechanics, collection view paging/layout, scroll-to-settle
 wiring — these need instrumented manual verification (the frame-timing measurement) or UI
