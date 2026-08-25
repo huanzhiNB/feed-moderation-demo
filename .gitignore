@@ -6,6 +6,7 @@ __pycache__/
 build/
 .gradle/
 *.xcodeproj/xcuserdata/
+*.xcworkspace/xcuserdata/
 DerivedData/
 
 # Personal Claude Code settings, not part of the submission.
