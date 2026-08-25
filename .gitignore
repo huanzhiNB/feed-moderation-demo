@@ -7,3 +7,6 @@ build/
 .gradle/
 *.xcodeproj/xcuserdata/
 DerivedData/
+
+# Personal Claude Code settings, not part of the submission.
+.claude/settings.local.json
