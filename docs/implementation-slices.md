@@ -27,8 +27,8 @@ the shared source of truth for what's done, what's next, and exactly what to ask
 
 | Slice | Concern | Status |
 |---|---|---|
-| 0 | Project bootstrap + mock-server connectivity proof | Not started |
-| 1 | Models + `APIClient` | Not started |
+| 0 | Project bootstrap + mock-server connectivity proof | Done (`8138576`, branch `huanzhiNB/slice-1-models-api`) |
+| 1 | Models + `APIClient` | Done (`b4f1b53`, branch `huanzhiNB/slice-1-models-api`) |
 | 2 | `ModerationStore` + tests | Not started |
 | 3 | `FeedRepository` + reactive `FeedViewModel` | Not started |
 | 4 | Feed UI without WKWebView | Not started |
