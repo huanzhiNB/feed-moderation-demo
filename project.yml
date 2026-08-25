@@ -1,0 +1,53 @@
+name: FeedModerationDemo
+options:
+  bundleIdPrefix: com.huanzhi.feedmoderationdemo
+  deploymentTarget:
+    iOS: "15.0"
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+targets:
+  FeedModerationDemo:
+    type: application
+    platform: iOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: Sources/FeedModerationDemo
+    info:
+      path: Sources/FeedModerationDemo/Info.plist
+      properties:
+        UILaunchScreen: {}
+        NSAppTransportSecurity:
+          NSExceptionDomains:
+            127.0.0.1:
+              NSExceptionAllowsInsecureHTTPLoads: true
+              NSIncludesSubdomains: false
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.huanzhi.feedmoderationdemo.app
+        TARGETED_DEVICE_FAMILY: "1"
+        SWIFT_VERSION: "5.0"
+  FeedModerationDemoTests:
+    type: bundle.unit-test
+    platform: iOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: Tests/FeedModerationDemoTests
+    dependencies:
+      - target: FeedModerationDemo
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.huanzhi.feedmoderationdemo.tests
+        SWIFT_VERSION: "5.0"
+        GENERATE_INFOPLIST_FILE: YES
+schemes:
+  FeedModerationDemo:
+    build:
+      targets:
+        FeedModerationDemo: all
+        FeedModerationDemoTests: [test]
+    test:
+      targets:
+        - FeedModerationDemoTests
+    run:
+      config: Debug
