@@ -45,9 +45,10 @@ final class FeedItemCell: UICollectionViewCell {
     /// below the existing title/creator/Report/Block stack (and below `webViewCoverView`) so
     /// those stay visible and tappable, and so a failed/blank load still shows sensible
     /// content. `isReady` reflects the pool's own load state at attach time: a pre-fetched
-    /// settled±1 neighbor (`docs/architecture-plan.md` §5) may already have finished loading
-    /// before this cell ever attached to it, so navigation-finished state must come from the
-    /// pool, not always reset to false.
+    /// neighbor within the prefetch window (`PrefetchWindow.default`,
+    /// `docs/prefetch-window-latency-results.md`) may already have finished loading before this
+    /// cell ever attached to it, so navigation-finished state must come from the pool, not
+    /// always reset to false.
     func attach(webView: WKWebView, gameID: String, isReady: Bool, index: Int) {
         self.webView = webView
         assignedGameID = gameID

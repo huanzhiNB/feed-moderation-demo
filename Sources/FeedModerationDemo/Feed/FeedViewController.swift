@@ -1,16 +1,18 @@
 import Combine
 import UIKit
 
-/// How many neighbors of the settled item stay resident in the `WebViewPool`. Default is
-/// "settled ± 1" (`docs/architecture-plan.md` §5) — the shipped behavior. Injectable so the
-/// window size can be swapped for the fixed swipe-speed latency protocol in
-/// `docs/prefetch-window-latency-results.md` without touching call sites; leave it at
-/// `.default` for the actual submission.
+/// How many neighbors of the settled item stay resident in the `WebViewPool`. Chosen from the
+/// measured latency/hitch comparison across `ahead` in {1, 3, 5, 7, 9}
+/// (`docs/prefetch-window-latency-results.md`): appear-to-play latency drops sharply through
+/// ahead=5 (945ms → 320ms median) then flattens — ahead=7/9 buy a few more concurrent
+/// `WKWebView`s for latency gains within measurement noise. `behind` stays at 1 since nothing
+/// in that data motivated changing it. Injectable so the window size can still be swapped for
+/// further experiments without touching call sites.
 struct PrefetchWindow {
     let behind: Int
     let ahead: Int
 
-    static let `default` = PrefetchWindow(behind: 1, ahead: 1)
+    static let `default` = PrefetchWindow(behind: 1, ahead: 5)
 
     fileprivate var slotCount: Int { behind + ahead + 1 }
 }
@@ -188,7 +190,8 @@ final class FeedViewController: UIViewController {
 
     /// Makes the pool's residency exactly match `prefetchWindow` around `index` (`{index -
     /// prefetchWindow.behind, ..., index + prefetchWindow.ahead}`, clipped to bounds — default
-    /// is "settled ± 1", `docs/architecture-plan.md` §5). Called both from `willDisplay` (so a
+    /// is `behind: 1, ahead: 5`, chosen from measurement, `docs/prefetch-window-latency-results.md`).
+    /// Called both from `willDisplay` (so a
     /// cell entering the screen gets a slot even before any settle has happened yet — cold
     /// start, or a cell reused far from the last window) and from `handleSettle` (so the
     /// settled item's neighbors start loading the moment you land, not only once you start

@@ -10,11 +10,12 @@ protocol WebViewPoolDelegate: AnyObject {
     func webViewPool(_ pool: WebViewPool, didFailLoadingGameID gameID: String)
 }
 
-/// A small fixed pool of `WKWebView`s sharing one `WKProcessPool`, instead of one WebView
-/// per cell. Residency is a deterministic sliding window, not an LRU cache: `reconcile(desired:)`
-/// is always called with exactly the up-to-3 games that belong in the pool right now
-/// ("settled ± 1", `docs/architecture-plan.md` §5) — the caller always knows the answer, so the
-/// pool doesn't need to guess from access recency. Evicting only what's no longer desired means a
+/// A fixed pool of `WKWebView`s sharing one `WKProcessPool`, instead of one WebView per cell.
+/// Residency is a deterministic sliding window, not an LRU cache: `reconcile(desired:)` is
+/// always called with exactly the games that belong in the pool right now (`PrefetchWindow`,
+/// sized `behind: 1, ahead: 5` by default per `docs/prefetch-window-latency-results.md`) — the
+/// caller always knows the answer, so the pool doesn't need to guess from access recency.
+/// Evicting only what's no longer desired means a
 /// currently on-screen cell's game — always a member of the window computed around itself or
 /// its immediate neighbor, since adjacent windows overlap — can never be evicted out from
 /// under it; that's a structural property of the reconciliation, not a case that needs a
