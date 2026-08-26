@@ -33,6 +33,7 @@ final class FeedViewController: UIViewController {
     private let webViewPool: WebViewPool
     private let prefetchWindow: PrefetchWindow
     private let playbackCoordinator = PlaybackCoordinator()
+    private let frameHitchMonitor = FrameHitchMonitor()
 
     private var cancellables = Set<AnyCancellable>()
 
@@ -62,6 +63,7 @@ final class FeedViewController: UIViewController {
         setUpCollectionView()
         bindViewModel()
         viewModel.loadInitialPageIfNeeded()
+        frameHitchMonitor.start()
     }
 
     override func viewDidLayoutSubviews() {

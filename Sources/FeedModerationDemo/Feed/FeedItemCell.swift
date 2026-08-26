@@ -119,7 +119,11 @@ final class FeedItemCell: UICollectionViewCell {
         hasLoggedAppearToPlayLatency = true
         let elapsedNanoseconds = DispatchTime.now().uptimeNanoseconds - appearedAtUptimeNanoseconds
         let elapsedMilliseconds = Double(elapsedNanoseconds) / 1_000_000
-        print(String(format: "FeedItemCell: cell %d appear-to-play latency: %.1f ms", cellIndex, elapsedMilliseconds))
+        // NSLog rather than print: bridges to the unified logging system, so `log stream`/
+        // Console.app can capture it from a `simctl launch`ed process with no debugger
+        // attached (plain print() only reaches Xcode's own console) — needed for the
+        // automated swipe-speed latency protocol in docs/prefetch-window-latency-results.md.
+        NSLog("FeedItemCell: cell %d appear-to-play latency: %.1f ms", cellIndex, elapsedMilliseconds)
     }
 
     func pause() {
