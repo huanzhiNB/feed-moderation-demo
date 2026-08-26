@@ -11,3 +11,7 @@ DerivedData/
 
 # Personal Claude Code settings, not part of the submission.
 .claude/settings.local.json
+
+# Raw latency captures from scripts/parse_latency.py runs — local measurement
+# data, not part of the submission (summarized numbers go in the README).
+perf-logs/

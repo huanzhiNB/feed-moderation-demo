@@ -18,6 +18,7 @@
 		3B20261D2147993870E8201D /* CreatorGamesRepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5FB3EDC405781139C056F7D1 /* CreatorGamesRepositoryTests.swift */; };
 		3C604470BF16069F28A82319 /* FeedViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4A49DFC6F8877FA35C98A4C /* FeedViewController.swift */; };
 		408A475679740859BEB2C25E /* ModerationStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47E0EA3073D975F11C0C23DC /* ModerationStoreTests.swift */; };
+		5A37E747AB168740D21A3D76 /* FrameHitchMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D782F8E1D2A74C3A5931938 /* FrameHitchMonitor.swift */; };
 		5F2B394307D49AFFBAAEDD33 /* WebViewPool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45AAA3521AEA505C0170D32D /* WebViewPool.swift */; };
 		60B318533E0ABB8F6CBDB989 /* CreatorProfileViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECD5BA3085B2A403C1E62D3B /* CreatorProfileViewController.swift */; };
 		68EE159C8E7181A446337882 /* UserGamesPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36B153CC6E6695840031EA93 /* UserGamesPage.swift */; };
@@ -75,6 +76,7 @@
 		6451115A163D6205484D9483 /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
 		6D469CE6BA9CC94DA0DC0C68 /* FeedItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedItem.swift; sourceTree = "<group>"; };
 		8838EB47AA30A2E19D79A995 /* FeedItemCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedItemCell.swift; sourceTree = "<group>"; };
+		8D782F8E1D2A74C3A5931938 /* FrameHitchMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FrameHitchMonitor.swift; sourceTree = "<group>"; };
 		9C058FDF10C67F32AB1DEBA9 /* FeedRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedRouter.swift; sourceTree = "<group>"; };
 		A3B482C1F19DE9CD3EFF81F3 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		A6F390EAE87151D3D3FB6B14 /* CreatorGamesRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreatorGamesRepository.swift; sourceTree = "<group>"; };
@@ -203,6 +205,7 @@
 				9C058FDF10C67F32AB1DEBA9 /* FeedRouter.swift */,
 				C4A49DFC6F8877FA35C98A4C /* FeedViewController.swift */,
 				5DEEC5AA1C3EE93D308B1D5E /* FeedViewModel.swift */,
+				8D782F8E1D2A74C3A5931938 /* FrameHitchMonitor.swift */,
 				15E6CE6988AE184D0FE10C0B /* PlaybackCoordinator.swift */,
 				E2FBBD98A60CD24960D22ABC /* ToastMessage.swift */,
 				C10EB3719862E9DA88CFD662 /* ToastView.swift */,
@@ -304,6 +307,7 @@
 				B42F6BAE7074B3AD7D6AD977 /* FeedRouter.swift in Sources */,
 				3C604470BF16069F28A82319 /* FeedViewController.swift in Sources */,
 				224B89352ABB3C829A8C97B8 /* FeedViewModel.swift in Sources */,
+				5A37E747AB168740D21A3D76 /* FrameHitchMonitor.swift in Sources */,
 				F85D6E117297FB7CB3E1783E /* ModerationStore.swift in Sources */,
 				8D276E6A81AD078A9FA95002 /* PlaybackCoordinator.swift in Sources */,
 				ED6DE4617887DBCE68A30A47 /* ReportContentRequest.swift in Sources */,

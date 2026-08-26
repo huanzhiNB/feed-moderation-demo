@@ -120,8 +120,11 @@ This is where "don't drop frames" and "5 MB items" collide, and it's the section
 most design care.
 
 - **Small pooled window, not one WebView per cell, not create-on-demand per scroll event.**
-  Keep a fixed pool of ~3 `WKWebView` instances (settled ± 1), sharing one `WKProcessPool`.
-  A cell outside that window shows a static placeholder (cover image), no WebView at all.
+  Keep a fixed pool of `WKWebView` instances sized from `PrefetchWindow` (default
+  `behind: 1, ahead: 5` → 7 slots, chosen from the measured latency/hitch comparison in
+  `docs/prefetch-window-latency-results.md` — appear-to-play latency floors out by ahead=5),
+  sharing one `WKProcessPool`. A cell outside that window shows a static placeholder (cover
+  image), no WebView at all.
 - On enter-window: assign a pooled WebView to the cell,
   `load(URLRequest(url: item.gameURL))`.
 - On exit-window: `stopLoading()`, call `sekaiPause()` if it was playing, detach from the
@@ -132,8 +135,8 @@ most design care.
 - Implement `webViewWebContentProcessDidTerminate` — under memory pressure with repeated
   5 MB loads, the WebContent process can die; without a reload-on-terminate handler that
   cell goes permanently blank.
-- Be ready to name and justify the pool size (3) in the submission README — this is graded
-  explicitly ("what is alive while scrolling, and why that number").
+- Be ready to name and justify the pool size (7, from `ahead: 5`) in the submission README —
+  this is graded explicitly ("what is alive while scrolling, and why that number").
 
 Cell reuse racing async work: if a pooled WebView is reassigned to a new `game_id` while a
 previous `load()` is still in flight, a late-arriving `didFinish` must not call

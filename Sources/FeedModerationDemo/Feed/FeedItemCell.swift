@@ -23,6 +23,10 @@ final class FeedItemCell: UICollectionViewCell {
     private var isNavigationFinished = false
     private var pendingPlay = false
 
+    private var cellIndex: Int?
+    private var appearedAtUptimeNanoseconds: UInt64?
+    private var hasLoggedAppearToPlayLatency = false
+
     override init(frame: CGRect) {
         super.init(frame: frame)
         setUpLayout()
@@ -41,14 +45,19 @@ final class FeedItemCell: UICollectionViewCell {
     /// below the existing title/creator/Report/Block stack (and below `webViewCoverView`) so
     /// those stay visible and tappable, and so a failed/blank load still shows sensible
     /// content. `isReady` reflects the pool's own load state at attach time: a pre-fetched
-    /// settled±1 neighbor (`docs/architecture-plan.md` §5) may already have finished loading
-    /// before this cell ever attached to it, so navigation-finished state must come from the
-    /// pool, not always reset to false.
-    func attach(webView: WKWebView, gameID: String, isReady: Bool) {
+    /// neighbor within the prefetch window (`PrefetchWindow.default`,
+    /// `docs/prefetch-window-latency-results.md`) may already have finished loading before this
+    /// cell ever attached to it, so navigation-finished state must come from the pool, not
+    /// always reset to false.
+    func attach(webView: WKWebView, gameID: String, isReady: Bool, index: Int) {
         self.webView = webView
         assignedGameID = gameID
         isNavigationFinished = isReady
         pendingPlay = false
+
+        cellIndex = index
+        appearedAtUptimeNanoseconds = DispatchTime.now().uptimeNanoseconds
+        hasLoggedAppearToPlayLatency = false
 
         // A reused pool slot's WKWebView still visually shows the *previous* occupant's
         // last-rendered frame until this gameID's own load actually paints — cover it until
@@ -79,6 +88,10 @@ final class FeedItemCell: UICollectionViewCell {
         isNavigationFinished = false
         pendingPlay = false
         webViewCoverView.isHidden = false
+
+        cellIndex = nil
+        appearedAtUptimeNanoseconds = nil
+        hasLoggedAppearToPlayLatency = false
     }
 
     /// Gated on navigation having actually finished — `sekaiPlay` isn't defined until the
@@ -90,11 +103,28 @@ final class FeedItemCell: UICollectionViewCell {
             pendingPlay = true
             return
         }
+        logAppearToPlayLatencyIfNeeded()
         webView?.evaluateJavaScript("window.sekaiPlay && window.sekaiPlay();") { _, error in
             if let error {
                 print("FeedItemCell: sekaiPlay failed: \(error)")
             }
         }
+    }
+
+    /// Metric: time from this cell appearing on screen (`attach`, i.e. `willDisplay`) to the
+    /// first moment playback actually starts (post-load — this is only reached once
+    /// `isNavigationFinished` is true, never on the deferred `pendingPlay` branch above).
+    /// Logs once per appearance, not on every subsequent `play()` call for the same attach.
+    private func logAppearToPlayLatencyIfNeeded() {
+        guard !hasLoggedAppearToPlayLatency, let appearedAtUptimeNanoseconds, let cellIndex else { return }
+        hasLoggedAppearToPlayLatency = true
+        let elapsedNanoseconds = DispatchTime.now().uptimeNanoseconds - appearedAtUptimeNanoseconds
+        let elapsedMilliseconds = Double(elapsedNanoseconds) / 1_000_000
+        // NSLog rather than print: bridges to the unified logging system, so `log stream`/
+        // Console.app can capture it from a `simctl launch`ed process with no debugger
+        // attached (plain print() only reaches Xcode's own console) — needed for the
+        // automated swipe-speed latency protocol in docs/prefetch-window-latency-results.md.
+        NSLog("FeedItemCell: cell %d appear-to-play latency: %.1f ms", cellIndex, elapsedMilliseconds)
     }
 
     func pause() {
