@@ -5,7 +5,7 @@ import Foundation
 /// no direct list mutation. `visibleItems = fetchedPages - blockedCreators - reportedSekais`.
 /// Block/report write into `ModerationStore` synchronously (the item disappears the same
 /// frame) and fire the network call optimistically — a failure never reverts the local hide
-/// (see `ARCHITECTURE.md` §4/§9).
+/// (see `docs/architecture-plan.md` §4/§9).
 final class FeedViewModel {
     @Published private(set) var visibleItems: [FeedItem] = []
     let toastEvents = PassthroughSubject<ToastMessage, Never>()
@@ -42,7 +42,7 @@ final class FeedViewModel {
 
     /// `displayingIndex` must be an index into `visibleItems` (the filtered list), not the raw
     /// fetched pages — otherwise a page mostly consumed by a blocked creator can look "full"
-    /// while the visible tail is nearly exhausted (`ARCHITECTURE.md` §7).
+    /// while the visible tail is nearly exhausted (`docs/architecture-plan.md` §7).
     func loadNextPageIfNeeded(displayingIndex: Int) {
         guard displayingIndex >= visibleItems.count - Self.paginationThreshold else { return }
         requestNextPage()

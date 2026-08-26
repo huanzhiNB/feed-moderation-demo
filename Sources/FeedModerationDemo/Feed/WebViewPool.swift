@@ -2,8 +2,9 @@ import WebKit
 
 /// Notified about navigation outcomes for a pooled WebView's currently-assigned game.
 /// `gameID` is resolved by the pool from the slot's *current* assignment at callback time,
-/// so a stale callback from a superseded load never gets attributed to the wrong game
-/// (`ARCHITECTURE.md` §5).
+/// and cross-checked against the slot's `currentNavigation` (see below) so a stale callback
+/// from a superseded load never gets attributed to the wrong game
+/// (`docs/architecture-plan.md` §5).
 protocol WebViewPoolDelegate: AnyObject {
     func webViewPool(_ pool: WebViewPool, didFinishLoadingGameID gameID: String)
     func webViewPool(_ pool: WebViewPool, didFailLoadingGameID gameID: String)
@@ -12,8 +13,8 @@ protocol WebViewPoolDelegate: AnyObject {
 /// A small fixed pool of `WKWebView`s sharing one `WKProcessPool`, instead of one WebView
 /// per cell. Residency is a deterministic sliding window, not an LRU cache: `reconcile(desired:)`
 /// is always called with exactly the up-to-3 games that belong in the pool right now
-/// ("settled ± 1", `ARCHITECTURE.md` §5) — the caller always knows the answer, so the pool
-/// doesn't need to guess from access recency. Evicting only what's no longer desired means a
+/// ("settled ± 1", `docs/architecture-plan.md` §5) — the caller always knows the answer, so the
+/// pool doesn't need to guess from access recency. Evicting only what's no longer desired means a
 /// currently on-screen cell's game — always a member of the window computed around itself or
 /// its immediate neighbor, since adjacent windows overlap — can never be evicted out from
 /// under it; that's a structural property of the reconciliation, not a case that needs a
@@ -21,11 +22,22 @@ protocol WebViewPoolDelegate: AnyObject {
 final class WebViewPool: NSObject {
     weak var delegate: WebViewPoolDelegate?
 
+    /// Number of slots currently holding a game — exposed for Instruments cross-referencing
+    /// (`docs/architecture-plan.md` §11): confirms the pool bound is actually respected at
+    /// runtime, not just asserted in code.
+    private(set) var occupiedSlotCount = 0
+
     private struct Slot {
         let webView: WKWebView
         var gameID: String?
         var url: URL?
         var isFinishedLoading = false
+        /// The `WKNavigation` for this slot's current load, captured from `webView.load(_:)`'s
+        /// return value. A delegate callback whose `navigation` doesn't match this is for a
+        /// superseded load — evicted and reassigned to a different game before the callback for
+        /// the *old* load arrived — and must not be attributed to whatever game now occupies the
+        /// slot (`docs/architecture-plan.md` §5).
+        var currentNavigation: WKNavigation?
     }
 
     private var slots: [Slot]
@@ -57,6 +69,8 @@ final class WebViewPool: NSObject {
             slots[index].gameID = nil
             slots[index].url = nil
             slots[index].isFinishedLoading = false
+            slots[index].currentNavigation = nil
+            occupiedSlotCount -= 1
         }
 
         for pair in desired where !slots.contains(where: { $0.gameID == pair.gameID }) {
@@ -64,7 +78,8 @@ final class WebViewPool: NSObject {
             slots[index].gameID = pair.gameID
             slots[index].url = pair.url
             slots[index].isFinishedLoading = false
-            slots[index].webView.load(URLRequest(url: pair.url))
+            slots[index].currentNavigation = slots[index].webView.load(URLRequest(url: pair.url))
+            occupiedSlotCount += 1
         }
     }
 
@@ -81,7 +96,11 @@ final class WebViewPool: NSObject {
     }
 
     private func pause(slotIndex: Int) {
-        slots[slotIndex].webView.evaluateJavaScript("window.sekaiPause && window.sekaiPause();")
+        slots[slotIndex].webView.evaluateJavaScript("window.sekaiPause && window.sekaiPause();") { _, error in
+            if let error {
+                print("WebViewPool: sekaiPause failed: \(error)")
+            }
+        }
     }
 
     private func slotIndex(for webView: WKWebView) -> Int? {
@@ -91,26 +110,38 @@ final class WebViewPool: NSObject {
 
 extension WebViewPool: WKNavigationDelegate {
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation?) {
-        guard let index = slotIndex(for: webView), let gameID = slots[index].gameID else { return }
+        guard
+            let index = slotIndex(for: webView),
+            let gameID = slots[index].gameID,
+            navigation === slots[index].currentNavigation
+        else { return }
         slots[index].isFinishedLoading = true
         delegate?.webViewPool(self, didFinishLoadingGameID: gameID)
     }
 
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation?, withError error: Error) {
-        guard let index = slotIndex(for: webView), let gameID = slots[index].gameID else { return }
+        guard
+            let index = slotIndex(for: webView),
+            let gameID = slots[index].gameID,
+            navigation === slots[index].currentNavigation
+        else { return }
         delegate?.webViewPool(self, didFailLoadingGameID: gameID)
     }
 
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation?, withError error: Error) {
-        guard let index = slotIndex(for: webView), let gameID = slots[index].gameID else { return }
+        guard
+            let index = slotIndex(for: webView),
+            let gameID = slots[index].gameID,
+            navigation === slots[index].currentNavigation
+        else { return }
         delegate?.webViewPool(self, didFailLoadingGameID: gameID)
     }
 
     /// The WebContent process can die under memory pressure from repeated ~5 MB loads
-    /// (`ARCHITECTURE.md` §5). Recover by reloading from the slot's own stored URL — not
-    /// `webView.url`, which can be stale or nil right after the process terminates.
+    /// (`docs/architecture-plan.md` §5). Recover by reloading from the slot's own stored URL —
+    /// not `webView.url`, which can be stale or nil right after the process terminates.
     func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
         guard let index = slotIndex(for: webView), let url = slots[index].url else { return }
-        webView.load(URLRequest(url: url))
+        slots[index].currentNavigation = webView.load(URLRequest(url: url))
     }
 }

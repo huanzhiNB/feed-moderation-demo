@@ -3,7 +3,7 @@ import WebKit
 
 /// Title, creator, Report, and Block, with a pooled `WKWebView` for the sekai content
 /// underneath. The WebView is owned by `WebViewPool`; this cell only borrows it while
-/// assigned (`ARCHITECTURE.md` §5) and is the sole place that gates `sekaiPlay()` on
+/// assigned (`docs/architecture-plan.md` §5) and is the sole place that gates `sekaiPlay()` on
 /// navigation actually finishing.
 final class FeedItemCell: UICollectionViewCell {
     static let reuseIdentifier = "FeedItemCell"
@@ -12,6 +12,7 @@ final class FeedItemCell: UICollectionViewCell {
     private let creatorButton = UIButton(type: .system)
     private let reportButton = UIButton(type: .system)
     private let blockButton = UIButton(type: .system)
+    private let webViewCoverView = UIView()
 
     private var onReport: (() -> Void)?
     private var onBlock: (() -> Void)?
@@ -37,12 +38,12 @@ final class FeedItemCell: UICollectionViewCell {
     }
 
     /// Cell entering the pool's window. `webView` is on loan from `WebViewPool` — inserted
-    /// below the existing title/creator/Report/Block stack so those stay visible and
-    /// tappable, and so a failed/blank load still shows sensible content. `isReady` reflects
-    /// the pool's own load state at attach time: a pre-fetched settled±1 neighbor
-    /// (`ARCHITECTURE.md` §5) may already have finished loading before this cell ever
-    /// attached to it, so navigation-finished state must come from the pool, not always
-    /// reset to false.
+    /// below the existing title/creator/Report/Block stack (and below `webViewCoverView`) so
+    /// those stay visible and tappable, and so a failed/blank load still shows sensible
+    /// content. `isReady` reflects the pool's own load state at attach time: a pre-fetched
+    /// settled±1 neighbor (`docs/architecture-plan.md` §5) may already have finished loading
+    /// before this cell ever attached to it, so navigation-finished state must come from the
+    /// pool, not always reset to false.
     func attach(webView: WKWebView, gameID: String, isReady: Bool) {
         self.webView = webView
         assignedGameID = gameID
@@ -50,9 +51,13 @@ final class FeedItemCell: UICollectionViewCell {
         pendingPlay = false
 
         // A reused pool slot's WKWebView still visually shows the *previous* occupant's
-        // last-rendered frame until this gameID's own load actually paints — hide it until
-        // then so a cell never displays the wrong game's content, even briefly.
-        webView.isHidden = !isReady
+        // last-rendered frame until this gameID's own load actually paints — cover it until
+        // then so a cell never displays the wrong game's content, even briefly. Deliberately
+        // NOT `webView.isHidden`: WebKit deprioritizes committing new compositor frames for a
+        // hidden view, so unhiding right at `didFinish` can itself reveal a not-yet-updated
+        // layer — a stale-frame flash, just moved one step later. An opaque native cover
+        // sidesteps that: the WebView keeps rendering at normal priority the whole time.
+        webViewCoverView.isHidden = isReady
 
         webView.translatesAutoresizingMaskIntoConstraints = false
         contentView.insertSubview(webView, at: 0)
@@ -64,14 +69,16 @@ final class FeedItemCell: UICollectionViewCell {
         ])
     }
 
-    /// Cell exiting the pool's window (or being reused). Playback is stopped by the caller
-    /// (`WebViewPool.release`) before this is called; this only detaches the borrowed view.
+    /// Cell exiting the pool's window (or being reused). `didEndDisplaying` pauses via
+    /// `pause()` before calling this; `WebViewPool.reconcile` separately pauses a slot on
+    /// eviction. This only detaches the borrowed view.
     func detach() {
         webView?.removeFromSuperview()
         webView = nil
         assignedGameID = nil
         isNavigationFinished = false
         pendingPlay = false
+        webViewCoverView.isHidden = false
     }
 
     /// Gated on navigation having actually finished — `sekaiPlay` isn't defined until the
@@ -83,21 +90,29 @@ final class FeedItemCell: UICollectionViewCell {
             pendingPlay = true
             return
         }
-        webView?.evaluateJavaScript("window.sekaiPlay && window.sekaiPlay();")
+        webView?.evaluateJavaScript("window.sekaiPlay && window.sekaiPlay();") { _, error in
+            if let error {
+                print("FeedItemCell: sekaiPlay failed: \(error)")
+            }
+        }
     }
 
     func pause() {
         pendingPlay = false
         guard webView != nil else { return }
-        webView?.evaluateJavaScript("window.sekaiPause && window.sekaiPause();")
+        webView?.evaluateJavaScript("window.sekaiPause && window.sekaiPause();") { _, error in
+            if let error {
+                print("FeedItemCell: sekaiPause failed: \(error)")
+            }
+        }
     }
 
     /// `gameID` is guarded against the cell's *current* assignment — a late callback for a
-    /// game this cell was reassigned away from must not act (`ARCHITECTURE.md` §5).
+    /// game this cell was reassigned away from must not act (`docs/architecture-plan.md` §5).
     func markNavigationFinished(for gameID: String) {
         guard gameID == assignedGameID else { return }
         isNavigationFinished = true
-        webView?.isHidden = false
+        webViewCoverView.isHidden = true
         if pendingPlay {
             pendingPlay = false
             play()
@@ -124,6 +139,20 @@ final class FeedItemCell: UICollectionViewCell {
 
     private func setUpLayout() {
         contentView.backgroundColor = .secondarySystemBackground
+
+        // Sits directly above wherever `attach(webView:...)` inserts a WebView (always at
+        // index 0), covering it until its content is actually ready to show. Added once here,
+        // before any WebView is ever attached, so it stays correctly stacked above index 0
+        // across every future attach/detach cycle.
+        webViewCoverView.backgroundColor = .secondarySystemBackground
+        webViewCoverView.translatesAutoresizingMaskIntoConstraints = false
+        contentView.insertSubview(webViewCoverView, at: 0)
+        NSLayoutConstraint.activate([
+            webViewCoverView.topAnchor.constraint(equalTo: contentView.topAnchor),
+            webViewCoverView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor),
+            webViewCoverView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
+            webViewCoverView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
+        ])
 
         titleLabel.font = .preferredFont(forTextStyle: .title2)
         titleLabel.textAlignment = .center

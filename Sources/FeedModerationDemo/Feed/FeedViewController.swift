@@ -3,7 +3,7 @@ import UIKit
 
 /// Vertical, one-item-per-screen, snap-scrolling feed. Snapshots are driven exclusively by
 /// `FeedViewModel.visibleItems` emissions — Report/Block never remove a collection view item
-/// by hand (`ARCHITECTURE.md` §2/§3).
+/// by hand (`docs/architecture-plan.md` §2/§3).
 final class FeedViewController: UIViewController {
     private enum Section {
         case main
@@ -107,7 +107,7 @@ final class FeedViewController: UIViewController {
                 // Reconcile playback only when the currently-playing item actually dropped
                 // out of the list, or nothing has ever played yet (cold-start autoplay) —
                 // not on every snapshot change, or an unrelated page-fetch mid-flick would
-                // hijack playback onto whatever's transiently centered (`ARCHITECTURE.md` §6).
+                // hijack playback onto whatever's transiently centered (`docs/architecture-plan.md` §6).
                 let stillPresent = self.playbackCoordinator.currentlyPlayingID
                     .map { id in items.contains { $0.gameID == id } }
                 let needsReconciliation = stillPresent == false || (stillPresent == nil && !items.isEmpty)
@@ -146,7 +146,7 @@ final class FeedViewController: UIViewController {
     }
 
     /// The single call site for `sekaiPlay`/`sekaiPause`, invoked from every settle trigger
-    /// (`ARCHITECTURE.md` §6) and from `visibleItems` reconciliation above. Resolving to "no
+    /// (`docs/architecture-plan.md` §6) and from `visibleItems` reconciliation above. Resolving to "no
     /// centered item" (empty list, or a snapshot mid-transition) is a normal outcome — it
     /// just pauses without playing anything, never a crash.
     private func handleSettle() {
@@ -168,7 +168,7 @@ final class FeedViewController: UIViewController {
     }
 
     /// Makes the pool's residency exactly match the window around `index` — `{index-1,
-    /// index, index+1}`, clipped to bounds ("settled ± 1", `ARCHITECTURE.md` §5). Called
+    /// index, index+1}`, clipped to bounds ("settled ± 1", `docs/architecture-plan.md` §5). Called
     /// both from `willDisplay` (so a cell entering the screen gets a slot even before any
     /// settle has happened yet — cold start, or a cell reused far from the last window) and
     /// from `handleSettle` (so the settled item's neighbors start loading the moment you

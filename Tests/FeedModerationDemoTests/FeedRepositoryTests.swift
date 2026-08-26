@@ -71,4 +71,24 @@ final class FeedRepositoryTests: XCTestCase {
 
         XCTAssertFalse(repository.isLoading)
     }
+
+    /// Regression guard for the `willDisplay`-triggered pagination race: overlapping calls to
+    /// `loadNextPage()` (as would come from separate `Task`s spawned per cell during a fast
+    /// flick) must not both pass the `isLoading` guard. `FeedRepository` is `@MainActor`
+    /// so this is deterministic — the artificial delay just makes the overlap unmissable.
+    func test_loadNextPage_calledConcurrently_onlyFetchesOnce() async throws {
+        let loader = StubDataLoader(
+            data: feedJSON([("game_0000", "creator_1")]),
+            delayNanoseconds: 20_000_000
+        )
+        let repository = makeRepository(loader: loader)
+
+        async let first: () = repository.loadNextPage()
+        async let second: () = repository.loadNextPage()
+        _ = try await (first, second)
+
+        XCTAssertEqual(loader.requests.count, 1)
+        XCTAssertEqual(repository.pages.map(\.gameID), ["game_0000"])
+        XCTAssertFalse(repository.isLoading)
+    }
 }

@@ -1,7 +1,7 @@
 import UIKit
 
 /// A short self-dismissing toast — no third-party library, two message strings only
-/// (`ARCHITECTURE.md` §4).
+/// (`docs/architecture-plan.md` §4).
 final class ToastView: UIView {
     private let label = UILabel()
 

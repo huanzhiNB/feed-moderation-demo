@@ -75,4 +75,22 @@ final class CreatorGamesRepositoryTests: XCTestCase {
         try await repository.loadNextPage()
         XCTAssertEqual(loader.requests.count, 1)
     }
+
+    /// Same `willDisplay`-triggered pagination race as `FeedRepository` — see
+    /// `FeedRepositoryTests.test_loadNextPage_calledConcurrently_onlyFetchesOnce`.
+    func test_loadNextPage_calledConcurrently_onlyFetchesOnce() async throws {
+        let loader = StubDataLoader(
+            data: userGamesJSON([("game_0000", userID)], page: 0, hasMore: true),
+            delayNanoseconds: 20_000_000
+        )
+        let repository = makeRepository(loader: loader)
+
+        async let first: () = repository.loadNextPage()
+        async let second: () = repository.loadNextPage()
+        _ = try await (first, second)
+
+        XCTAssertEqual(loader.requests.count, 1)
+        XCTAssertEqual(repository.items.map(\.gameID), ["game_0000"])
+        XCTAssertFalse(repository.isLoading)
+    }
 }
