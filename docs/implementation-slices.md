@@ -35,9 +35,9 @@ the shared source of truth for what's done, what's next, and exactly what to ask
 | 5 | Creator page | Done (`7cfc87b`, branch `huanzhiNB/slice-5-creator-page`) |
 | 6a | WKWebView/playback risk analysis (no code) | Done (analysis in slice 6b's commit message context, `1826655`, branch `huanzhiNB/slice-6-webview-playback`) |
 | 6b | WKWebView/playback implementation | Done (`1826655`, branch `huanzhiNB/slice-6-webview-playback`) |
-| — | Requirement audit (hostile reviewer pass) | Not started |
+| — | Requirement audit (hostile reviewer pass) | Done — found and fixed the `willDisplay` pagination race (`FeedRepository`/`CreatorGamesRepository`, now `@MainActor`-isolated) and a stale-navigation-callback misattribution in `WebViewPool.reconcile` (fixed via per-slot `WKNavigation` identity check); branch `huanzhiNB/webview-review-fixes` |
 | — | Manual acceptance test (§12 rehearsal script) | Not started |
-| — | Instruments measurement (§11) | Not started |
+| — | Instruments measurement (§11) | Not started — `WebViewPool.occupiedSlotCount` added to support it |
 | — | Measured-bottleneck analysis + one-change-at-a-time optimization | Not started |
 | — | Final submission audit | Not started |
 | — | App README + screen recording | Not started |

@@ -3,7 +3,7 @@ import WebKit
 
 /// Title, creator, Report, and Block, with a pooled `WKWebView` for the sekai content
 /// underneath. The WebView is owned by `WebViewPool`; this cell only borrows it while
-/// assigned (`ARCHITECTURE.md` §5) and is the sole place that gates `sekaiPlay()` on
+/// assigned (`docs/architecture-plan.md` §5) and is the sole place that gates `sekaiPlay()` on
 /// navigation actually finishing.
 final class FeedItemCell: UICollectionViewCell {
     static let reuseIdentifier = "FeedItemCell"
@@ -40,7 +40,7 @@ final class FeedItemCell: UICollectionViewCell {
     /// below the existing title/creator/Report/Block stack so those stay visible and
     /// tappable, and so a failed/blank load still shows sensible content. `isReady` reflects
     /// the pool's own load state at attach time: a pre-fetched settled±1 neighbor
-    /// (`ARCHITECTURE.md` §5) may already have finished loading before this cell ever
+    /// (`docs/architecture-plan.md` §5) may already have finished loading before this cell ever
     /// attached to it, so navigation-finished state must come from the pool, not always
     /// reset to false.
     func attach(webView: WKWebView, gameID: String, isReady: Bool) {
@@ -64,8 +64,9 @@ final class FeedItemCell: UICollectionViewCell {
         ])
     }
 
-    /// Cell exiting the pool's window (or being reused). Playback is stopped by the caller
-    /// (`WebViewPool.release`) before this is called; this only detaches the borrowed view.
+    /// Cell exiting the pool's window (or being reused). `didEndDisplaying` pauses via
+    /// `pause()` before calling this; `WebViewPool.reconcile` separately pauses a slot on
+    /// eviction. This only detaches the borrowed view.
     func detach() {
         webView?.removeFromSuperview()
         webView = nil
@@ -83,17 +84,25 @@ final class FeedItemCell: UICollectionViewCell {
             pendingPlay = true
             return
         }
-        webView?.evaluateJavaScript("window.sekaiPlay && window.sekaiPlay();")
+        webView?.evaluateJavaScript("window.sekaiPlay && window.sekaiPlay();") { _, error in
+            if let error {
+                print("FeedItemCell: sekaiPlay failed: \(error)")
+            }
+        }
     }
 
     func pause() {
         pendingPlay = false
         guard webView != nil else { return }
-        webView?.evaluateJavaScript("window.sekaiPause && window.sekaiPause();")
+        webView?.evaluateJavaScript("window.sekaiPause && window.sekaiPause();") { _, error in
+            if let error {
+                print("FeedItemCell: sekaiPause failed: \(error)")
+            }
+        }
     }
 
     /// `gameID` is guarded against the cell's *current* assignment — a late callback for a
-    /// game this cell was reassigned away from must not act (`ARCHITECTURE.md` §5).
+    /// game this cell was reassigned away from must not act (`docs/architecture-plan.md` §5).
     func markNavigationFinished(for gameID: String) {
         guard gameID == assignedGameID else { return }
         isNavigationFinished = true

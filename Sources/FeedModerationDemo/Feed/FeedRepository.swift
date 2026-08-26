@@ -19,6 +19,13 @@ final class FeedRepository {
         self.pageSize = pageSize
     }
 
+    /// `@MainActor`-isolated so the `isLoading` check-then-set below is atomic: `willDisplay`
+    /// can call `loadNextPageIfNeeded` once per cell during a fast flick, each spawning its own
+    /// `Task`, and without isolation those overlapping tasks could both pass the guard before
+    /// either set `isLoading = true` — duplicate fetches racing on `pages`/`nextCursor`. No
+    /// `await` separates the guard from the set, so actor isolation alone makes it atomic;
+    /// callers already only ever reach this via `Task { await ... }`, so the extra hop is free.
+    @MainActor
     func loadNextPage() async throws {
         guard !isLoading, !isExhausted else { return }
         isLoading = true

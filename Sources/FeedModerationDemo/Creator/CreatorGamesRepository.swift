@@ -21,6 +21,10 @@ final class CreatorGamesRepository {
         self.pageSize = pageSize
     }
 
+    /// `@MainActor`-isolated for the same reason as `FeedRepository.loadNextPage()`: makes the
+    /// `isLoading` check-then-set below atomic against overlapping `willDisplay`-triggered
+    /// `Task`s during a fast flick.
+    @MainActor
     func loadNextPage() async throws {
         guard !isLoading, hasMore else { return }
         isLoading = true

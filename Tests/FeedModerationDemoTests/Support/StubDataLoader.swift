@@ -7,26 +7,35 @@ import Foundation
 /// last once exhausted) — needed to simulate a sequence of paginated fetches.
 final class StubDataLoader: URLDataLoading {
     private let responses: [(data: Data, statusCode: Int)]
+    private let delayNanoseconds: UInt64
     private(set) var requests: [URLRequest] = []
     private var callCount = 0
 
     var lastRequest: URLRequest? { requests.last }
 
-    init(data: Data, statusCode: Int = 200) {
+    init(data: Data, statusCode: Int = 200, delayNanoseconds: UInt64 = 0) {
         self.responses = [(data, statusCode)]
+        self.delayNanoseconds = delayNanoseconds
     }
 
-    init(responses: [(data: Data, statusCode: Int)]) {
+    init(responses: [(data: Data, statusCode: Int)], delayNanoseconds: UInt64 = 0) {
         self.responses = responses
+        self.delayNanoseconds = delayNanoseconds
     }
 
     func data(from url: URL) async throws -> (Data, URLResponse) {
-        respond(to: URLRequest(url: url), url: url)
+        if delayNanoseconds > 0 {
+            try await Task.sleep(nanoseconds: delayNanoseconds)
+        }
+        return respond(to: URLRequest(url: url), url: url)
     }
 
     func data(for request: URLRequest) async throws -> (Data, URLResponse) {
         guard let url = request.url else {
             preconditionFailure("StubDataLoader requires a request with a URL")
+        }
+        if delayNanoseconds > 0 {
+            try await Task.sleep(nanoseconds: delayNanoseconds)
         }
         return respond(to: request, url: url)
     }

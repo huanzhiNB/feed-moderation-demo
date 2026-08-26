@@ -1,6 +1,6 @@
 /// Decides which single feed item should be playing. Pure — no UIKit/WebKit — so
 /// "exactly one playing" is a structural property of this one call site
-/// (`ARCHITECTURE.md` §6), not something re-verified wherever `sekaiPlay`/`sekaiPause` are
+/// (`docs/architecture-plan.md` §6), not something re-verified wherever `sekaiPlay`/`sekaiPause` are
 /// issued.
 final class PlaybackCoordinator {
     private(set) var currentlyPlayingID: String?
