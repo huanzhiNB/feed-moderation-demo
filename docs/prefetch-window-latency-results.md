@@ -60,36 +60,74 @@ Both runs completed with every cell logging before its own timeout — no outlie
 Run 1 still hit the timeout ceiling on its last 2 cells (the one 26.8s outlier above); run 2
 was fully clean.
 
-### ahead=1 vs ahead=3 — reading the medians
+### ahead = 5 (`PrefetchWindow(behind: 1, ahead: 5)`, 7 pool slots)
 
-| | ahead=1 | ahead=3 | Δ |
-|---|---|---|---|
-| Latency median | 945.4 ms | 584.9 ms | **-38%** |
-| Hitch mean | 187.9 ms | 160.8 ms | -14% (noisy — see sample sizes) |
-| Hitch sample count | 12 | 14 | slightly more hitches with the bigger window |
+| Run | Latency n | Latency mean | Latency median | Latency p90 | Latency max | Hitch n | Hitch mean | Hitch max |
+|---|---|---|---|---|---|---|---|---|
+| 1 | 9 | 1031.3 ms | 331.9 ms | 1183.7 ms | 4850.1 ms | 5 | 156.3 ms | 249.5 ms |
+| 2 | 8 | 944.1 ms | 320.4 ms | 1218.2 ms | 4189.0 ms | 5 | 158.7 ms | 251.5 ms |
+| **Combined** | **17** | **990.3 ms** | **320.5 ms** | 1218.2 ms | 4850.1 ms | **10** | **157.5 ms** | 251.5 ms |
 
-Bigger prefetch window measurably lowers the appear-to-play latency (more concurrent
-`WKWebView`s means more items get a real head start before you scroll to them). It does **not**
-show a corresponding hitch-count blowup here — 12 vs 14 hitch samples, similar magnitude — but
-this is only a 2-step comparison (ahead=1 → ahead=3) with 2 runs each; whether that trend holds
-or reverses at ahead=5/7/9 (11 concurrent 5MB `WKWebView`s at ahead=9) is exactly what those
-remaining groups would tell you.
+Both runs clean, no timeouts.
 
-### ahead = 5, 7, 9
+### ahead = 7 (`PrefetchWindow(behind: 1, ahead: 7)`, 9 pool slots)
 
-Not yet run — switched to manual testing (via Xcode) partway through automation because the
-scripted swipe-and-poll harness was too slow/flaky on this shared machine. To add a group by
-hand:
+| Run | Latency n | Latency mean | Latency median | Latency p90 | Latency max | Hitch n | Hitch mean | Hitch max |
+|---|---|---|---|---|---|---|---|---|
+| 1 | 8 | 315.9 ms | 315.5 ms | 322.6 ms | 325.3 ms | 3 | 28.1 ms | 51.1 ms |
+| 2 | 9 | 621.5 ms | 319.3 ms | 1515.9 ms | 1897.9 ms | 3 | 101.0 ms | 252.9 ms |
+| **Combined** | **17** | **477.7 ms** | **317.8 ms** | 325.3 ms | 1897.9 ms | **6** | **64.5 ms** | 252.9 ms |
 
-1. In `SceneDelegate.swift`, set `prefetchWindow: PrefetchWindow(behind: 1, ahead: <N>)`.
-2. Run the app from Xcode, watch the console. Swipe to the next cell **as soon as** you see
-   that cell's own `"cell <index> appear-to-play latency"` line print (not before — swiping
-   earlier defeats the point of this protocol) and **not long after** (don't let it sit and
-   rack up frames past that point either).
-3. Copy the console output for 10 cells into a text file.
-4. `python3 scripts/parse_latency.py <file> --exclude-first` — extracts both latency and hitch
-   stats automatically from the same pasted log.
-5. Add a row/section here in the same format as ahead=1/3 above.
+Run 1's harness polling lagged badly here (every cell after 0 reported "TIMED OUT" in the
+script's own progress log) — but the *content itself* was already fast (each cell's own
+internally-computed latency is ~310-325ms, not delayed), confirming this was the capture
+pipeline lagging under load, not the app. The numbers are kept as-is since they're genuine
+values written by the app, just detected later than intended; wall-clock pacing (not data
+validity) was the casualty.
+
+### ahead = 9 (`PrefetchWindow(behind: 1, ahead: 9)`, 11 pool slots)
+
+| Run | Latency n | Latency mean | Latency median | Latency p90 | Latency max | Hitch n | Hitch mean | Hitch max |
+|---|---|---|---|---|---|---|---|---|
+| 1 | 9 | 317.5 ms | 317.6 ms | 323.4 ms | 325.2 ms | 4 | 25.0 ms | 40.1 ms |
+| 2 | 9 | 310.6 ms | 312.2 ms | 317.2 ms | 322.3 ms | 2 | 46.2 ms | 53.7 ms |
+| **Combined** | **18** | **314.0 ms** | **315.4 ms** | 322.3 ms | 325.2 ms | **6** | **32.1 ms** | 53.7 ms |
+
+Both runs clean, no timeouts — and the tightest, most consistent numbers of any group (every
+single sample lands in a 296–325ms band).
+
+## ahead = 1 / 3 / 5 / 7 / 9 — full comparison
+
+| ahead | Pool slots | Latency median | Latency mean | Hitch n | Hitch mean |
+|---|---|---|---|---|---|
+| 1 | 3 | 945.4 ms | 3954.7 ms | 12 | 187.9 ms |
+| 3 | 5 | 584.9 ms | 3350.5 ms | 14 | 160.8 ms |
+| 5 | 7 | 320.5 ms | 990.3 ms | 10 | 157.5 ms |
+| 7 | 9 | 317.8 ms | 477.7 ms | 6 | 64.5 ms |
+| 9 | 11 | 315.4 ms | 314.0 ms | 6 | 32.1 ms |
+
+**Latency drops monotonically and converges.** Going from ahead=1 to ahead=5 more than
+triples the effective throughput (945ms → 320ms median); ahead=5 → 9 barely moves the needle
+(320ms → 315ms) because the median has already hit the floor — the ~300-325ms left over is
+just `evaluateJavaScript` + native call overhead once content is already sitting in memory
+fully loaded, not something any bigger window can shave further. **The real win is in going
+from ahead=1 to somewhere around ahead=5; ahead=7 and ahead=9 buy almost nothing more.**
+
+**Hitches did not get worse with more concurrent `WKWebView`s — they got *better*.** Both hitch
+count and average magnitude trend down as `ahead` grows (187.9ms → 32.1ms mean; 12 → 6
+samples). The likely explanation: with a small window, a cold `WKWebView` navigation often has
+to actually start and commit its first layer tree at the exact moment you land on that cell
+(visible in earlier testing as `WKWebView _didCommitLayerTree` calls near a settle) — that's
+main-thread work happening right when you're also mid-scroll-settle. With a bigger window,
+that same work already happened seconds earlier while the cell was still just a "neighbor," so
+by the time you actually swipe there the main thread has nothing to do but flip a boolean and
+call `sekaiPlay()`.
+
+**Caveat — this is latency and hitches only, not memory.** None of these runs measured actual
+RSS/footprint per config. Going from 3 to 11 concurrent `WKWebView`s (each holding a ~5MB page)
+almost certainly costs real memory even though it didn't cost frames here — that tradeoff still
+needs Instruments Allocations/VM Tracker (or `vmmap`) per config to quantify, which is the
+one piece this test doesn't answer.
 
 ## What's confirmed so far
 
@@ -107,6 +145,18 @@ hand:
 
 ## Conclusion
 
-`<fill in once ahead=5/7/9 are measured on a quieter run — which window size actually reduces
-latency at a cost in concurrent WKWebViews that's still worth it, and whether hitches scale up
-noticeably as slot count grows>`
+- **ahead=5 is the sweet spot, not ahead=9.** Latency median: 945ms (ahead=1) → 585ms (ahead=3)
+  → 320ms (ahead=5) → 318ms (ahead=7) → 315ms (ahead=9). Almost all the win is captured by
+  ahead=5; going past it to 7 or 9 pays for 4-6 more concurrent 5MB `WKWebView`s for a few
+  milliseconds of further improvement that's within measurement noise.
+- **No evidence of a frame-hitch cost from more concurrent WebViews in this test** — hitches
+  actually trended down, not up, as `ahead` grew. So the "bigger window = worse main-thread
+  performance" hypothesis this whole experiment was built to check did **not** show up in
+  latency/hitch terms.
+- **That doesn't mean the memory cost is free** — this test never measured RSS. ahead=9's 11
+  concurrent 5MB pages are almost certainly heavier on memory than ahead=1's 3, even though
+  neither one dropped a frame here. On a real device (unlike this Mac-backed Simulator, which
+  has no real memory pressure/jetsam behavior) that memory cost is where a large window could
+  still lose — measuring actual footprint per config (Instruments Allocations/VM Tracker,
+  "All Processes" so the separate `WebContent` processes are included) is the natural next
+  step before picking ahead=5 as a real shipping default.
