@@ -31,7 +31,7 @@ the shared source of truth for what's done, what's next, and exactly what to ask
 | 1 | Models + `APIClient` | Done (`b4f1b53`, branch `huanzhiNB/slice-1-models-api`) |
 | 2 | `ModerationStore` + tests | Done (`50914d8`, branch `huanzhiNB/slice-2-moderation-store`) |
 | 3 | `FeedRepository` + reactive `FeedViewModel` | Done (`97254cd`, branch `huanzhiNB/slice-3-feed-repository-viewmodel`) |
-| 4 | Feed UI without WKWebView | Not started |
+| 4 | Feed UI without WKWebView | Done (`48a91bc`, branch `huanzhiNB/slice-4-feed-ui`) |
 | 5 | Creator page | Not started |
 | 6a | WKWebView/playback risk analysis (no code) | Not started |
 | 6b | WKWebView/playback implementation | Not started |
