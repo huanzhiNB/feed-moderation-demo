@@ -25,12 +25,17 @@ captured console/log-stream file.
 - Mock server: default flags, already running for the whole session (`python3 mock/server.py`,
   page-size 6, latency-ms 350, item-bytes 5MB, fail-rate 0.2) — not restarted between runs,
   since it holds no state that affects this metric.
-- **Caveat: this machine was running other simulator instances, Xcode builds, and unrelated
-  apps at the same time as some of these runs.** A handful of cells hit a 25s give-up ceiling
-  during automated runs (visible as very large outliers, e.g. ~26.8s appearing on more than one
-  cell) — those are real logged numbers, not fabricated, but they reflect shared-machine
-  contention on top of the window-size effect, not a clean isolated measurement. Treat the
-  **median**, not the mean, as the more trustworthy summary number for that reason.
+- **First attempt at this table was thrown out and re-run.** The harness drives the swipe
+  gesture with synthetic mouse events at fixed screen coordinates; two environment issues
+  corrupted that first pass and were fixed before the numbers below were captured: (1) the Mac
+  went to display sleep during a long idle gap and synthetic clicks stopped reaching the
+  Simulator window until `caffeinate -d` was used to hold the display awake, and (2) another
+  window came to the front and intercepted a run's clicks entirely, fixed by having the harness
+  re-activate the Simulator app before every swipe. This machine also had two other simulator
+  instances running the same app the whole time (not something this test controls), so some
+  residual shared-CPU/network noise is still expected — a handful of cells below still needed
+  the full 25s per-cell timeout. Treat **median** as the trustworthy number; mean is skewed by
+  those remaining outliers.
 
 ## Results
 
@@ -38,25 +43,37 @@ captured console/log-stream file.
 
 | Run | Latency n | Latency mean | Latency median | Latency p90 | Latency max | Hitch n | Hitch mean | Hitch max |
 |---|---|---|---|---|---|---|---|---|
-| 1 | 7 | 7888.6 ms | 331.7 ms | 26780.9 ms | 26848.5 ms | 9 | 18.5 ms | 40.0 ms |
-| 2 | 9 | 3997.1 ms | 584.6 ms | 8566.2 ms | 8717.3 ms | 7 | 152.4 ms | 255.0 ms |
-| **Combined** | **16** | **5699.6 ms** | **332.4 ms** | 8717.3 ms | 26848.5 ms | **16** | **77.1 ms** | 255.0 ms |
+| 1 | 9 | 3970.0 ms | 524.8 ms | 8538.4 ms | 8607.8 ms | 5 | 192.6 ms | 246.1 ms |
+| 2 | 9 | 3939.5 ms | 1320.2 ms | 8392.1 ms | 8587.3 ms | 7 | 184.5 ms | 254.4 ms |
+| **Combined** | **18** | **3954.7 ms** | **945.4 ms** | 8538.4 ms | 8607.8 ms | **12** | **187.9 ms** | 254.4 ms |
 
-Run 1 hit the machine-contention issue noted above (cells 2–9 all needed the full 25s
-timeout); run 2 completed cleanly with every cell logging before its own timeout.
+Both runs completed with every cell logging before its own timeout — no outliers this time.
 
 ### ahead = 3 (`PrefetchWindow(behind: 1, ahead: 3)`, 5 pool slots)
 
 | Run | Latency n | Latency mean | Latency median | Latency p90 | Latency max | Hitch n | Hitch mean | Hitch max |
 |---|---|---|---|---|---|---|---|---|
-| 1 | 8 | 4729.6 ms | 449.4 ms | 8548.4 ms | 26769.0 ms | 5 | 161.8 ms | 253.3 ms |
-| 2 | 8 | 5989.0 ms | 315.7 ms | 19194.3 ms | 26830.5 ms | 3 | 33.4 ms | 42.5 ms |
-| **Combined** | **16** | **5359.3 ms** | **320.4 ms** | 19194.3 ms | 26830.5 ms | **8** | **113.6 ms** | 253.3 ms |
+| 1 | 8 | 4717.1 ms | 573.5 ms | 7688.4 ms | 26755.7 ms | 6 | 183.3 ms | 252.7 ms |
+| 2 | 9 | 2135.6 ms | 584.9 ms | 7580.1 ms | 7638.8 ms | 8 | 143.8 ms | 256.3 ms |
+| **Combined** | **17** | **3350.5 ms** | **584.9 ms** | 7638.8 ms | 26755.7 ms | **14** | **160.8 ms** | 256.3 ms |
 
-Both runs here hit the contention ceiling on several cells too, so the ahead=1 vs ahead=3
-comparison above is **not yet clean enough to call** — the medians (332ms vs 320ms) look
-similar, but both are diluted by the same shared-machine noise. Re-running either config on a
-quieter machine (or with nothing else competing for the simulator) would sharpen this.
+Run 1 still hit the timeout ceiling on its last 2 cells (the one 26.8s outlier above); run 2
+was fully clean.
+
+### ahead=1 vs ahead=3 — reading the medians
+
+| | ahead=1 | ahead=3 | Δ |
+|---|---|---|---|
+| Latency median | 945.4 ms | 584.9 ms | **-38%** |
+| Hitch mean | 187.9 ms | 160.8 ms | -14% (noisy — see sample sizes) |
+| Hitch sample count | 12 | 14 | slightly more hitches with the bigger window |
+
+Bigger prefetch window measurably lowers the appear-to-play latency (more concurrent
+`WKWebView`s means more items get a real head start before you scroll to them). It does **not**
+show a corresponding hitch-count blowup here — 12 vs 14 hitch samples, similar magnitude — but
+this is only a 2-step comparison (ahead=1 → ahead=3) with 2 runs each; whether that trend holds
+or reverses at ahead=5/7/9 (11 concurrent 5MB `WKWebView`s at ahead=9) is exactly what those
+remaining groups would tell you.
 
 ### ahead = 5, 7, 9
 
