@@ -26,7 +26,13 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
             apiClient: apiClient,
             moderationStore: moderationStore
         )
-        let feedViewController = FeedViewController(viewModel: feedViewModel, router: feedRouter)
+        // Swap this for the prefetch-window latency experiment
+        // (docs/prefetch-window-latency-results.md) — leave at `.default` otherwise.
+        let feedViewController = FeedViewController(
+            viewModel: feedViewModel,
+            router: feedRouter,
+            prefetchWindow: .default
+        )
         navigationController.viewControllers = [feedViewController]
 
         window.rootViewController = navigationController

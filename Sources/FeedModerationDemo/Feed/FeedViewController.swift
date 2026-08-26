@@ -1,6 +1,20 @@
 import Combine
 import UIKit
 
+/// How many neighbors of the settled item stay resident in the `WebViewPool`. Default is
+/// "settled ± 1" (`docs/architecture-plan.md` §5) — the shipped behavior. Injectable so the
+/// window size can be swapped for the fixed swipe-speed latency protocol in
+/// `docs/prefetch-window-latency-results.md` without touching call sites; leave it at
+/// `.default` for the actual submission.
+struct PrefetchWindow {
+    let behind: Int
+    let ahead: Int
+
+    static let `default` = PrefetchWindow(behind: 1, ahead: 1)
+
+    fileprivate var slotCount: Int { behind + ahead + 1 }
+}
+
 /// Vertical, one-item-per-screen, snap-scrolling feed. Snapshots are driven exclusively by
 /// `FeedViewModel.visibleItems` emissions — Report/Block never remove a collection view item
 /// by hand (`docs/architecture-plan.md` §2/§3).
@@ -16,14 +30,17 @@ final class FeedViewController: UIViewController {
     private lazy var dataSource = makeDataSource()
     private var itemsByID: [String: FeedItem] = [:]
 
-    private let webViewPool = WebViewPool()
+    private let webViewPool: WebViewPool
+    private let prefetchWindow: PrefetchWindow
     private let playbackCoordinator = PlaybackCoordinator()
 
     private var cancellables = Set<AnyCancellable>()
 
-    init(viewModel: FeedViewModel, router: FeedRouter) {
+    init(viewModel: FeedViewModel, router: FeedRouter, prefetchWindow: PrefetchWindow = .default) {
         self.viewModel = viewModel
         self.router = router
+        self.prefetchWindow = prefetchWindow
+        self.webViewPool = WebViewPool(slotCount: prefetchWindow.slotCount)
 
         let layout = UICollectionViewFlowLayout()
         layout.scrollDirection = .vertical
@@ -167,15 +184,17 @@ final class FeedViewController: UIViewController {
         }
     }
 
-    /// Makes the pool's residency exactly match the window around `index` — `{index-1,
-    /// index, index+1}`, clipped to bounds ("settled ± 1", `docs/architecture-plan.md` §5). Called
-    /// both from `willDisplay` (so a cell entering the screen gets a slot even before any
-    /// settle has happened yet — cold start, or a cell reused far from the last window) and
-    /// from `handleSettle` (so the settled item's neighbors start loading the moment you
-    /// land, not only once you start scrolling toward them). Calling it twice for the same
-    /// index is a no-op — `WebViewPool.reconcile` only touches what's actually changed.
+    /// Makes the pool's residency exactly match `prefetchWindow` around `index` (`{index -
+    /// prefetchWindow.behind, ..., index + prefetchWindow.ahead}`, clipped to bounds — default
+    /// is "settled ± 1", `docs/architecture-plan.md` §5). Called both from `willDisplay` (so a
+    /// cell entering the screen gets a slot even before any settle has happened yet — cold
+    /// start, or a cell reused far from the last window) and from `handleSettle` (so the
+    /// settled item's neighbors start loading the moment you land, not only once you start
+    /// scrolling toward them). Calling it twice for the same index is a no-op —
+    /// `WebViewPool.reconcile` only touches what's actually changed.
     private func reconcileWindow(around index: Int) {
-        let desired = [index - 1, index, index + 1].compactMap { item -> (gameID: String, url: URL)? in
+        let range = (index - prefetchWindow.behind)...(index + prefetchWindow.ahead)
+        let desired = range.compactMap { item -> (gameID: String, url: URL)? in
             guard item >= 0 else { return nil }
             guard let gameID = dataSource.itemIdentifier(for: IndexPath(item: item, section: 0)) else { return nil }
             guard let feedItem = itemsByID[gameID] else { return nil }
