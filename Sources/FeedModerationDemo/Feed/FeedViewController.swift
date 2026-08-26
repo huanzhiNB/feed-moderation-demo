@@ -151,8 +151,8 @@ final class FeedViewController: UIViewController {
     /// just pauses without playing anything, never a crash.
     private func handleSettle() {
         let centerPoint = CGPoint(x: collectionView.bounds.midX, y: collectionView.bounds.midY)
-        let centeredGameID = collectionView.indexPathForItem(at: centerPoint)
-            .flatMap { dataSource.itemIdentifier(for: $0) }
+        let centeredIndexPath = collectionView.indexPathForItem(at: centerPoint)
+        let centeredGameID = centeredIndexPath.flatMap { dataSource.itemIdentifier(for: $0) }
 
         let (toPlay, toPause) = playbackCoordinator.settled(on: centeredGameID)
         if let toPause {
@@ -161,6 +161,27 @@ final class FeedViewController: UIViewController {
         if let toPlay {
             cell(for: toPlay)?.play()
         }
+
+        if let centeredIndexPath {
+            reconcileWindow(around: centeredIndexPath.item)
+        }
+    }
+
+    /// Makes the pool's residency exactly match the window around `index` — `{index-1,
+    /// index, index+1}`, clipped to bounds ("settled ± 1", `ARCHITECTURE.md` §5). Called
+    /// both from `willDisplay` (so a cell entering the screen gets a slot even before any
+    /// settle has happened yet — cold start, or a cell reused far from the last window) and
+    /// from `handleSettle` (so the settled item's neighbors start loading the moment you
+    /// land, not only once you start scrolling toward them). Calling it twice for the same
+    /// index is a no-op — `WebViewPool.reconcile` only touches what's actually changed.
+    private func reconcileWindow(around index: Int) {
+        let desired = [index - 1, index, index + 1].compactMap { item -> (gameID: String, url: URL)? in
+            guard item >= 0 else { return nil }
+            guard let gameID = dataSource.itemIdentifier(for: IndexPath(item: item, section: 0)) else { return nil }
+            guard let feedItem = itemsByID[gameID] else { return nil }
+            return (gameID, feedItem.gameURL)
+        }
+        webViewPool.reconcile(desired: desired)
     }
 }
 
@@ -168,23 +189,19 @@ extension FeedViewController: UICollectionViewDelegate {
     func collectionView(_ collectionView: UICollectionView, willDisplay cell: UICollectionViewCell, forItemAt indexPath: IndexPath) {
         viewModel.loadNextPageIfNeeded(displayingIndex: indexPath.item)
 
-        guard
-            let feedCell = cell as? FeedItemCell,
-            let gameID = dataSource.itemIdentifier(for: indexPath),
-            let item = itemsByID[gameID]
-        else { return }
+        guard let feedCell = cell as? FeedItemCell, let gameID = dataSource.itemIdentifier(for: indexPath) else { return }
 
-        let webView = webViewPool.acquireWebView(for: gameID, url: item.gameURL)
-        feedCell.attach(webView: webView, gameID: gameID)
+        reconcileWindow(around: indexPath.item)
+        guard let webView = webViewPool.webView(for: gameID) else { return }
+        feedCell.attach(webView: webView, gameID: gameID, isReady: webViewPool.isReady(for: gameID))
         if gameID == playbackCoordinator.currentlyPlayingID {
             feedCell.play()
         }
     }
 
     func collectionView(_ collectionView: UICollectionView, didEndDisplaying cell: UICollectionViewCell, forItemAt indexPath: IndexPath) {
-        guard let feedCell = cell as? FeedItemCell, let gameID = feedCell.assignedGameID else { return }
+        guard let feedCell = cell as? FeedItemCell else { return }
         feedCell.pause()
-        webViewPool.release(gameID: gameID)
         feedCell.detach()
     }
 

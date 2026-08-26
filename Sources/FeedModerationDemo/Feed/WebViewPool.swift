@@ -9,9 +9,15 @@ protocol WebViewPoolDelegate: AnyObject {
     func webViewPool(_ pool: WebViewPool, didFailLoadingGameID gameID: String)
 }
 
-/// A small fixed pool of `WKWebView`s ("settled ± 1" — 3 instances, `ARCHITECTURE.md` §5)
-/// sharing one `WKProcessPool`, instead of one WebView per cell. A cell outside the pool's
-/// window gets no WebView at all.
+/// A small fixed pool of `WKWebView`s sharing one `WKProcessPool`, instead of one WebView
+/// per cell. Residency is a deterministic sliding window, not an LRU cache: `reconcile(desired:)`
+/// is always called with exactly the up-to-3 games that belong in the pool right now
+/// ("settled ± 1", `ARCHITECTURE.md` §5) — the caller always knows the answer, so the pool
+/// doesn't need to guess from access recency. Evicting only what's no longer desired means a
+/// currently on-screen cell's game — always a member of the window computed around itself or
+/// its immediate neighbor, since adjacent windows overlap — can never be evicted out from
+/// under it; that's a structural property of the reconciliation, not a case that needs a
+/// separate "don't touch this one" flag.
 final class WebViewPool: NSObject {
     weak var delegate: WebViewPoolDelegate?
 
@@ -19,18 +25,17 @@ final class WebViewPool: NSObject {
         let webView: WKWebView
         var gameID: String?
         var url: URL?
-        var lastUsedTick: Int
+        var isFinishedLoading = false
     }
 
     private var slots: [Slot]
-    private var tick = 0
 
     init(slotCount: Int = 3) {
         let processPool = WKProcessPool()
         slots = (0..<slotCount).map { _ in
             let configuration = WKWebViewConfiguration()
             configuration.processPool = processPool
-            return Slot(webView: WKWebView(frame: .zero, configuration: configuration), gameID: nil, url: nil, lastUsedTick: 0)
+            return Slot(webView: WKWebView(frame: .zero, configuration: configuration), gameID: nil, url: nil)
         }
         super.init()
         for index in slots.indices {
@@ -38,38 +43,41 @@ final class WebViewPool: NSObject {
         }
     }
 
-    /// Returns the pooled WebView assigned to `gameID`, loading `url` into it if it wasn't
-    /// already assigned there. Reassigns a free slot, or evicts the least-recently-used
-    /// assigned slot (pausing + stopping it first) if none are free.
-    func acquireWebView(for gameID: String, url: URL) -> WKWebView {
-        tick += 1
-
-        if let index = slots.firstIndex(where: { $0.gameID == gameID }) {
-            slots[index].lastUsedTick = tick
-            return slots[index].webView
+    /// Makes the pool's residency match `desired` exactly: evicts (pauses + stops) any slot
+    /// whose game isn't in `desired`, then loads any of `desired` not already resident into
+    /// the freed slots. A game already resident is left completely untouched — no reload,
+    /// preserving its JS state (frame counter, play/pause) — since `desired` always fits
+    /// within the pool's fixed size, eviction only ever frees exactly as many slots as are
+    /// needed for what's missing.
+    func reconcile(desired: [(gameID: String, url: URL)]) {
+        let desiredIDs = Set(desired.map(\.gameID))
+        for index in slots.indices where slots[index].gameID.map({ !desiredIDs.contains($0) }) ?? false {
+            pause(slotIndex: index)
+            slots[index].webView.stopLoading()
+            slots[index].gameID = nil
+            slots[index].url = nil
+            slots[index].isFinishedLoading = false
         }
 
-        let targetIndex = slots.firstIndex(where: { $0.gameID == nil })
-            ?? slots.indices.min(by: { slots[$0].lastUsedTick < slots[$1].lastUsedTick })
-            ?? 0
-
-        pause(slotIndex: targetIndex)
-        slots[targetIndex].webView.stopLoading()
-        slots[targetIndex].gameID = gameID
-        slots[targetIndex].url = url
-        slots[targetIndex].lastUsedTick = tick
-        slots[targetIndex].webView.load(URLRequest(url: url))
-        return slots[targetIndex].webView
+        for pair in desired where !slots.contains(where: { $0.gameID == pair.gameID }) {
+            guard let index = slots.firstIndex(where: { $0.gameID == nil }) else { continue }
+            slots[index].gameID = pair.gameID
+            slots[index].url = pair.url
+            slots[index].isFinishedLoading = false
+            slots[index].webView.load(URLRequest(url: pair.url))
+        }
     }
 
-    /// Cell exiting the pool's window: pause, stop loading, and free the slot for reuse.
-    /// The `WKWebView` instance itself stays alive in the pool.
-    func release(gameID: String) {
-        guard let index = slots.firstIndex(where: { $0.gameID == gameID }) else { return }
-        pause(slotIndex: index)
-        slots[index].webView.stopLoading()
-        slots[index].gameID = nil
-        slots[index].url = nil
+    /// The WebView currently holding `gameID`'s content, if it's resident.
+    func webView(for gameID: String) -> WKWebView? {
+        slots.first(where: { $0.gameID == gameID })?.webView
+    }
+
+    /// Whether `gameID`'s currently-assigned slot has already finished loading — lets a
+    /// cell that attaches to an already-resident WebView skip the deferred-play wait instead
+    /// of always assuming a fresh, unfinished load.
+    func isReady(for gameID: String) -> Bool {
+        slots.first(where: { $0.gameID == gameID })?.isFinishedLoading ?? false
     }
 
     private func pause(slotIndex: Int) {
@@ -84,6 +92,7 @@ final class WebViewPool: NSObject {
 extension WebViewPool: WKNavigationDelegate {
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation?) {
         guard let index = slotIndex(for: webView), let gameID = slots[index].gameID else { return }
+        slots[index].isFinishedLoading = true
         delegate?.webViewPool(self, didFinishLoadingGameID: gameID)
     }
 

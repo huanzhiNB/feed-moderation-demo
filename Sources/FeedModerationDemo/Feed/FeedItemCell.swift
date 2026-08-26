@@ -38,12 +38,21 @@ final class FeedItemCell: UICollectionViewCell {
 
     /// Cell entering the pool's window. `webView` is on loan from `WebViewPool` — inserted
     /// below the existing title/creator/Report/Block stack so those stay visible and
-    /// tappable, and so a failed/blank load still shows sensible content.
-    func attach(webView: WKWebView, gameID: String) {
+    /// tappable, and so a failed/blank load still shows sensible content. `isReady` reflects
+    /// the pool's own load state at attach time: a pre-fetched settled±1 neighbor
+    /// (`ARCHITECTURE.md` §5) may already have finished loading before this cell ever
+    /// attached to it, so navigation-finished state must come from the pool, not always
+    /// reset to false.
+    func attach(webView: WKWebView, gameID: String, isReady: Bool) {
         self.webView = webView
         assignedGameID = gameID
-        isNavigationFinished = false
+        isNavigationFinished = isReady
         pendingPlay = false
+
+        // A reused pool slot's WKWebView still visually shows the *previous* occupant's
+        // last-rendered frame until this gameID's own load actually paints — hide it until
+        // then so a cell never displays the wrong game's content, even briefly.
+        webView.isHidden = !isReady
 
         webView.translatesAutoresizingMaskIntoConstraints = false
         contentView.insertSubview(webView, at: 0)
@@ -88,6 +97,7 @@ final class FeedItemCell: UICollectionViewCell {
     func markNavigationFinished(for gameID: String) {
         guard gameID == assignedGameID else { return }
         isNavigationFinished = true
+        webView?.isHidden = false
         if pendingPlay {
             pendingPlay = false
             play()
