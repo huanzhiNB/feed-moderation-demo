@@ -14,6 +14,10 @@
    The simulator reaches the mock server directly at `http://127.0.0.1:8787` — an ATS
    localhost exception for it is already set in `Info.plist`.
 
+## Screen recording
+
+[Demo recording](https://drive.google.com/file/d/1KPMVB_mCb-q_WnG9VFdT3sFXO9Q9Nm4z/view?usp=sharing)
+
 ## Moderation
 
 Block and report are optimistic and local-first:
