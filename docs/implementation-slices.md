@@ -33,8 +33,8 @@ the shared source of truth for what's done, what's next, and exactly what to ask
 | 3 | `FeedRepository` + reactive `FeedViewModel` | Done (`97254cd`, branch `huanzhiNB/slice-3-feed-repository-viewmodel`) |
 | 4 | Feed UI without WKWebView | Done (`48a91bc`, branch `huanzhiNB/slice-4-feed-ui`) |
 | 5 | Creator page | Done (`7cfc87b`, branch `huanzhiNB/slice-5-creator-page`) |
-| 6a | WKWebView/playback risk analysis (no code) | Not started |
-| 6b | WKWebView/playback implementation | Not started |
+| 6a | WKWebView/playback risk analysis (no code) | Done (analysis in slice 6b's commit message context, `1826655`, branch `huanzhiNB/slice-6-webview-playback`) |
+| 6b | WKWebView/playback implementation | Done (`1826655`, branch `huanzhiNB/slice-6-webview-playback`) |
 | — | Requirement audit (hostile reviewer pass) | Not started |
 | — | Manual acceptance test (§12 rehearsal script) | Not started |
 | — | Instruments measurement (§11) | Not started |
