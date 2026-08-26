@@ -212,7 +212,7 @@ extension FeedViewController: UICollectionViewDelegate {
 
         reconcileWindow(around: indexPath.item)
         guard let webView = webViewPool.webView(for: gameID) else { return }
-        feedCell.attach(webView: webView, gameID: gameID, isReady: webViewPool.isReady(for: gameID))
+        feedCell.attach(webView: webView, gameID: gameID, isReady: webViewPool.isReady(for: gameID), index: indexPath.item)
         if gameID == playbackCoordinator.currentlyPlayingID {
             feedCell.play()
         }
