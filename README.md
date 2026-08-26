@@ -1,271 +1,126 @@
-# Sekai take-home — feed moderation (block & report)
+# Feed Moderation Demo
 
-Build a small app around one screen we actually ship: an infinite, snap-scrolling feed of
-WebView-hosted content, with creator blocking and content reporting.
+## How to run it
 
-**Pick one platform — Android or iOS.** Do not build both; we would rather see one platform
-done with judgment than two done in a hurry.
+1. Start the mock server (dependency-free Python 3):
 
-**Time budget: ~6 focused hours.** If you run out of time, ship less scope and write down
-what you cut and why. A short honest README beats a large unfinished app.
-
----
-
-## The scenario
-
-Sekai's main surface is a vertical feed. Each item — we call one a **sekai** — is a small
-interactive experience rendered in a **WebView**, not a video and not a native view. Two facts
-about that content shape everything else:
-
-- Each item is **~5 MB**. You cannot keep them all alive.
-- Content only runs when the app tells it to. The page exposes `window.sekaiPlay()` and
-  `window.sekaiPause()`; nothing plays on its own.
-
-Users must be able to get abusive content and abusive creators out of their feed
-**immediately** — this is an App Store / Play compliance surface, not a nice-to-have. When a
-user blocks a creator, that creator's work has to disappear everywhere in the app, not just
-from the card that happened to be on screen.
-
-### What we use, for context
-
-Not a requirement — you are free to choose — but you may as well know what the code you would
-be joining looks like:
-
-- **Android**: Kotlin `Flow` / `StateFlow` throughout.
-- **iOS**: Combine is the workhorse (`@Published` + `ObservableObject` for the SwiftUI
-  binding). The shared Kotlin layer's `Flow`s arrive in Swift as `AsyncSequence` — SKIE
-  bridges them — so `for await` sits next to Combine in the same view models.
-- No third-party state library on either side.
-
----
-
-## What to build
-
-### 1. The feed
-
-- Vertical, one item per screen, **snaps** to an item (no resting between two items).
-- **Infinite scroll**: when the user approaches the end, fetch the next page and append.
-- Content is rendered in a WebView from the mock backend (see below). Each page is ~5 MB.
-- **Exactly one item plays at a time**: when the feed settles on item *n*, call
-  `sekaiPlay()` on it and `sekaiPause()` on whatever was playing before. Scrolling past an
-  item must not leave it running.
-
-### 2. Moderation actions
-
-From the feed item, the user can **report the content** or **block its creator**.
-
-- The item disappears **immediately** — no waiting for the network round trip.
-- A toast (or platform equivalent) confirms what happened.
-- Scrolling **back up must not show it again**. Neither must a later page fetch that happens
-  to include it.
-
-### 3. Creator page
-
-- Tapping the creator on a feed item opens their page: avatar, name, and **their sekais,
-  paged** (`userProfile` + `userGames` — see below).
-- The page has a **`⋯` button in the top-right**; it opens a panel containing **Block**.
-- After blocking, **every** sekai by that creator is invisible — in the feed, on this page,
-  and anywhere else you built.
-
----
-
-## Hard requirements
-
-These are the three things we will look at first.
-
-1. **Data flows through a stream, and the visible feed is _derived_ from it.**
-
-   This is the requirement we weigh most, and it is not about which library you picked. The
-   visible list should fall out of its inputs:
-
-   ```
-   visibleFeed = fetchedPages - blockedCreators - reportedSekais
+   ```bash
+   python3 mock/server.py            # serves http://127.0.0.1:8787
    ```
 
-   not be patched by hand at each call site (`list.remove(...)` in the block handler, again
-   in the report handler, again after the next page arrives). The second shape is what breaks
-   when a later page re-delivers an item you already removed.
+2. Open `FeedModerationDemo.xcodeproj` in Xcode and run the `FeedModerationDemo` scheme on
+   an iOS 15+ simulator.
 
-   - **Android**: `Flow` / `StateFlow`, `combine`, `stateIn`.
-   - **iOS**: `CurrentValueSubject` (this is Combine's `StateFlow` — hot, always holds a
-     current value, multicasts) or `@Published`, which is sugar over it. `AsyncStream` is
-     fine too. If you prefer TCA, use it — we do not, but we will read it happily.
+   The simulator reaches the mock server directly at `http://127.0.0.1:8787` — an ATS
+   localhost exception for it is already set in `Info.plist`.
 
-   Note that `Observation` / `@Observable` is iOS 17+, and this exercise targets iOS 15, the
-   same floor we ship.
+## Moderation
 
-2. **Scrolling does not drop frames.** With 5 MB items, this is the requirement with teeth.
-   Tell us **how you measured it** — a frame-timing trace, `FrameMetrics`, Instruments, an
-   overlay, whatever you trust. "It felt smooth" is not a measurement.
+Block and report are optimistic and local-first:
 
-3. **Autoplay follows the settled item**, per the play/pause contract above.
+- `ModerationStore` holds `blockedCreatorIDs` and `reportedGameIDs` as `@Published` sets,
+  persisted to `UserDefaults` — the only source of truth for what's hidden.
+- `visibleItems = fetchedPages - blockedCreators - reportedSekais` is derived reactively
+  (`FeedViewModel`, via `combineLatest` over the feed pages and both moderation sets), so
+  hiding an item is never a one-off `list.remove(...)` call — it holds across scrolling back
+  up, later page fetches that re-deliver the same item, and the creator's own page.
+- A block/report writes into `ModerationStore` synchronously — the item disappears the same
+  frame — and shows a toast, before the network call is even made.
 
----
+### What happens when the moderation call fails
 
-## Mock backend
+The `POST /blockUser` / `POST /reportContent` call is fired after the local state is already
+updated, and its result is discarded (`try? await apiClient.blockUser(...)`). A failure —
+including the mock server's built-in ~20% failure rate — **never reverts the local hide**: the
+item stays gone, no error is surfaced, and there is no retry. The product tradeoff is
+deliberate: once a user has blocked or reported something, showing it again because a backend
+call failed would be a worse experience than a silent best-effort write.
 
-`mock/server.py` is a dependency-free Python 3 server:
+## Sliding-window preload
 
-```bash
-python3 mock/server.py            # http://127.0.0.1:8787
-python3 mock/server.py --help     # page size, latency, payload size, failure rate
-```
+Each ~5 MB item is a `WKWebView`, and the app cannot keep them all alive. `WebViewPool` is a
+fixed pool of `WKWebView`s (sharing one `WKProcessPool`) whose residency is a deterministic
+**sliding window**, not an LRU cache: on every settle, `FeedViewController` calls
+`reconcile(desired:)` with exactly the `game_id`s that should be resident right now —
+`PrefetchWindow(behind: 1, ahead: 5)` around the settled cell, 7 pool slots — and the pool
+evicts (pause + stop loading) whatever's no longer desired, then loads whatever's missing into
+the freed slots. A game already resident is left untouched, so its JS state (frame counter,
+play/pause) survives scrolling past it and back.
 
-Android emulator reaches the host at `http://10.0.2.2:8787`.
+### How it was tested
 
-**The routes and field names mirror our production API; the data behind them is fake.** That
-is on purpose — the shapes you will meet on the job are the shapes you get here, including
-the two inconsistencies we live with: the feed returns a **bare array**, everything else is
-wrapped in `{code, message, data}`, and the wire is `snake_case`.
+- `FrameHitchMonitor` samples `CADisplayLink` on every vsync and logs a hitch whenever the
+  actual frame gap exceeds 1.5× the display's nominal frame duration (ProMotion-safe, not a
+  fixed 60 fps assumption). `FeedItemCell` logs its own **appear-to-play latency** — the time
+  from becoming the settled cell to `sekaiPlay()` actually firing. Both log to the same
+  unified-logging stream, captured with `log stream` and parsed by `scripts/parse_latency.py`.
+- Compared 5 window sizes — `ahead` = 1, 3, 5, 7, 9 (`behind` fixed at 1; pool slots =
+  `behind + ahead + 1`) — swiping through 10 cells per run, 2 runs per size, only advancing to
+  the next cell once the current one had actually logged its own appear-to-play latency (never
+  swiping ahead of a still-loading cell). Cell index 0 (cold start, no prefetch head start) was
+  excluded from the stats.
+- Environment: iPhone 15 / iOS 17.4 simulator, Release build, mock server defaults
+  (page-size 6, latency-ms 350, item-bytes 5 MB, fail-rate 0.2).
 
-Two screens, four requests.
+### Results (numbers, not adjectives)
 
-### The feed — `GET /game/feed?limit=<n>&refresh=<n>`
+| `ahead` | pool slots | latency median | latency mean | hitch count | hitch mean |
+|---|---|---|---|---|---|
+| 1 | 3 | 945.4 ms | 3954.7 ms | 12 | 187.9 ms |
+| 3 | 5 | 584.9 ms | 3350.5 ms | 14 | 160.8 ms |
+| 5 | 7 | 320.5 ms | 990.3 ms | 10 | 157.5 ms |
+| 7 | 9 | 317.8 ms | 477.7 ms | 6 | 64.5 ms |
+| 9 | 11 | 315.4 ms | 314.0 ms | 6 | 32.1 ms |
 
-`refresh` doubles as the page cursor here: `refresh=1` gives the next batch.
+Full per-run tables and environment notes: `docs/prefetch-window-latency-results.md`.
 
-```json
-[
-  {
-    "game_id": "game_0000",
-    "title": "Lo-Fi Vibe Mixer",
-    "game_url": "http://127.0.0.1:8787/content/game_0000",
-    "cover_url": "http://127.0.0.1:8787/avatar/creator_1",
-    "creator_id": "creator_1",
-    "creator_name": "mejikoOV_80",
-    "like_count": 7
-  }
-]
-```
+### Conclusion
 
-### The creator page — `GET /api/user/info/v1/userProfile?user_id=<id>`
+- **Shipped `ahead: 5` (7 pool slots), not a larger window.** Latency median drops from
+  945 ms (`ahead=1`) to 320 ms (`ahead=5`) — more than 3×. Going further to `ahead=7`/`9` only
+  reaches 317.8 ms / 315.4 ms, a difference inside measurement noise, for 2–4 more concurrent
+  5 MB `WKWebView`s.
+- **No frame-hitch cost from a bigger window was observed** — hitch count and average
+  magnitude both trended *down* as `ahead` grew (187.9 ms mean at `ahead=1` → 32.1 ms mean at
+  `ahead=9`), the opposite of this test's original hypothesis. Likely explanation: with a
+  small window, a cold `WKWebView`'s first layer-tree commit tends to land on the main thread
+  right at the scroll-settle moment; with a bigger window that work already happened seconds
+  earlier while the cell was still just a neighbor.
 
-```json
-{
-  "code": 0,
-  "message": "ok",
-  "data": {
-    "user_id": "creator_1",
-    "nick_name": "mejikoOV_80",
-    "avatar": "http://127.0.0.1:8787/avatar/creator_1",
-    "bio": "lo-fi loops and small machines",
-    "following_count": 10,
-    "follower_count": 60,
-    "like_count": 440
-  }
-}
-```
+### What we cut
 
-### The creator's sekais — `GET /api/game/list/v1/userGames?user_id=<id>&page=<n>&size=<n>`
+- **Memory (RSS) was never measured.** `ahead=9` holds 11 concurrent ~5 MB `WKWebView`s vs. 3
+  for `ahead=1` — that almost certainly costs real memory even though it cost no frames in
+  this test. Quantifying it needs Instruments Allocations/VM Tracker ("All Processes", since
+  `WebContent` is a separate process) per window size; not done given the time budget.
+- **Measured only in Simulator, not on a real device.** The Simulator has no real memory
+  pressure/jetsam behavior, so a real device is where a too-large window could still lose on
+  memory even though it didn't lose on frames here.
+- **No pause on `UIApplicationDidEnterBackground`.** Implied by "nothing keeps running off
+  screen" but not written explicitly into the requirements; not implemented.
+- **No automated UI test coverage** — explicitly out of scope for this exercise; correctness
+  of the derived-feed and playback rules is covered by unit tests instead.
 
-```json
-{
-  "code": 0,
-  "message": "ok",
-  "data": {
-    "list": [
-      {
-        "game_id": "game_0000",
-        "title": "Lo-Fi Vibe Mixer",
-        "game_url": "http://127.0.0.1:8787/content/game_0000",
-        "cover_url": "http://127.0.0.1:8787/avatar/creator_1",
-        "creator_id": "creator_1",
-        "creator_name": "mejikoOV_80",
-        "like_count": 7
-      }
-    ],
-    "page": 0,
-    "size": 2,
-    "has_more": true
-  }
-}
-```
+## To do
 
-**These are the same `game_id`s the feed serves** — `creator_1` owns `game_0000`,
-`game_0007`, `game_0014`, … in both places. Creators repeat every 7 items, so one block has
-to take out several sekais, including ones no page has fetched yet. After blocking, this
-screen is where a feed-only filter falls over.
-
-### The content — `GET /content/<gameId>`
-
-An HTML page of roughly **5 MB** (the `game_url` on each item). It defines:
-
-- `window.sekaiPlay()` — starts the animation, shows a visible `PLAYING` state.
-- `window.sekaiPause()` — stops it.
-
-It **does not** start on its own, and it renders its own play state plus a frame counter, so a
-screen recording shows whether your app got the contract right.
-
-### Moderation
-
-```
-POST /api/user/block/v1/blockUser          {"user_id": "creator_1"}
-POST /api/report/content/v1/reportContent  {"game_id": "game_0042", "reason": "spam"}
-```
-
-Both answer `{"code": 0}` after a delay — and **fail ~20% of the time** with a non-zero
-`code` (`--fail-rate` to change it). That failure is deliberate: decide what the user should
-see when the optimistic local change cannot be confirmed, and defend the choice in your README.
-
-### Avatars — `GET /avatar/<creatorId>`
-
-A small SVG served by the mock, so nothing in this exercise reaches the public internet.
-
----
-
-## What we are looking at
-
-| Area | What earns points |
-| --- | --- |
-| **Correctness of the hidden set** | Blocking a creator hides *all* their items, including ones already fetched and ones that arrive in a later page. Reported items stay gone across a scroll back and an app restart. |
-| **Where that logic lives** | One source of truth the UI derives from, versus removal code sprinkled at each call site. We care about this far more than about which library you used — `CurrentValueSubject`, `@Published`, `AsyncStream`, `StateFlow`, TCA all pass; a hand-patched list does not. |
-| **Memory under 5 MB items** | What is alive while scrolling, and why that number. Show us. |
-| **Frame timing** | Your measurement, your numbers, and what you changed because of them. |
-| **The play/pause contract** | Exactly one playing item; nothing keeps running off screen. |
-| **Tests** | A few tests on the parts that carry the rules. We do not expect UI test coverage. |
-| **Your README** | Trade-offs, what you cut, what you would do next, what you are unsure about. |
-
-We would rather see a small, honest, well-argued submission than a large one that hides its
-soft spots.
-
----
-
-## Out of scope
-
-- Real authentication, real backend, real reporting pipeline.
-- Design polish. Use platform defaults; we are not scoring visuals.
-- Both platforms. Pick one.
-- Localisation, accessibility beyond a sensible content description / label on the `⋯` button.
-
----
-
-## Submitting
-
-**Fork this repository**, build your app inside your fork, and **send us the URL of your fork
-when you are done.** Keep the mock server as it is — we run your app against it, so a modified
-mock makes the submissions incomparable. If you did have to change it, say so in your README
-and tell us why.
-
-Your fork should contain:
-
-1. The app source.
-2. A **short README** covering: how to run it, what you cut, your frame-timing measurement
-   (numbers, not adjectives), and what happens when the moderation call fails.
-3. A **screen recording**, roughly a minute: scroll a few items, block a creator, scroll back
-   past where their item was, and open a creator page and block from the `⋯` panel.
-
-The recording matters. Several of the requirements above (immediate removal, no reappearance,
-one item playing) are only visible in motion.
-
----
-
-## Notes / hints
-
-Three things we have seen candidates trip over — flagged deliberately, not as gotchas:
-
-- **"Remove from the list" is not the same as "hide".** A removal that mutates the visible
-  list gets undone by the next page fetch, which happily re-adds the same item.
-- **The 5 MB is the whole point of the frame-rate requirement.** How many WebViews you keep
-  alive, and when you create and destroy them, is the interesting decision on this exercise.
-- **Settling is not the same as "the item is on screen".** Fast scrolling passes over many
-  items; only the one the feed came to rest on should play.
+- **Memory-consumption monitoring.** Add an actual measurement of live `WKWebView`/`WebContent`
+  footprint (Instruments Allocations/VM Tracker or `vmmap`, "All Processes") per prefetch-window
+  size, to close the gap called out above — latency and hitches were measured, memory wasn't.
+- **More realistic test cases.** The current latency/hitch protocol is one steady swipe speed
+  through 10 cells; add scenarios closer to real usage — fast continuous flicks, pausing mid-feed,
+  scrolling back up past already-seen items, backgrounding/foregrounding mid-scroll.
+- **Retry the block/report network call on failure.** `blockUser`/`reportContent` currently fire
+  once and discard the result (`try? await ...`); the local hide is correct and immediate, but a
+  failed call (the mock server's ~20% built-in failure rate) is never retried, so the server-side
+  state can permanently disagree with the client's. If retry is added, it must not surface a
+  second toast that contradicts the first optimistic one when the retry eventually fails too —
+  the "never revert the local hide" decision above applies to the UI feedback as well, not just
+  the visible state.
+- **Render SVG avatars.** `GET /avatar/<creatorId>` serves an SVG, but `CreatorProfileView` loads
+  it through SwiftUI's `AsyncImage`, which only decodes bitmap formats (PNG/JPEG) — an SVG avatar
+  currently just falls back to the placeholder. Needs an SVG parser/renderer (e.g. `WKWebView`-
+  based rendering or a lightweight SVG-to-`UIImage` library) in its place.
+- **Pause playback when the app backgrounds.** Not written explicitly into the requirements, but
+  implied by "nothing keeps running off screen" — currently there's no
+  `UIApplicationDidEnterBackground`/`willResignActive` handling, so a playing item keeps running
+  after the app is backgrounded.

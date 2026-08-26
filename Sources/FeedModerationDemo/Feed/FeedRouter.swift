@@ -1,6 +1,6 @@
 import UIKit
 
-/// Feed-domain navigation (`ARCHITECTURE.md`: Router, not Coordinator — this owns no
+/// Feed-domain navigation (`docs/rules/ARCHITECTURE.md`: Router, not Coordinator — this owns no
 /// `UINavigationController` lifecycle and exposes no `start()`, it only pushes onto one it's
 /// given).
 final class FeedRouter {

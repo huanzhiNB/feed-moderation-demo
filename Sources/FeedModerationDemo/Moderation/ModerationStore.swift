@@ -3,7 +3,7 @@ import Foundation
 
 /// Owns the two moderation sets and nothing else — no UIKit, no feed/network knowledge. The
 /// feed and creator page must share one injected instance so a block/report is visible
-/// everywhere (see `ARCHITECTURE.md`).
+/// everywhere (see `docs/rules/ARCHITECTURE.md`).
 final class ModerationStore {
     @Published private(set) var blockedCreatorIDs: Set<String>
     @Published private(set) var reportedGameIDs: Set<String>

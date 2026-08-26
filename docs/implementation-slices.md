@@ -14,8 +14,8 @@ the shared source of truth for what's done, what's next, and exactly what to ask
   compile" — actually run `xcodebuild build` / `xcodebuild test` and fix errors before the
   slice is considered done.
 - **Review the diff for unnecessary abstractions** before committing — this project
-  prioritizes correctness and simplicity over abstraction (see `WORKING-STYLE.md`,
-  `SWIFT-STYLE.md`).
+  prioritizes correctness and simplicity over abstraction (see `docs/rules/WORKING-STYLE.md`,
+  `docs/rules/SWIFT-STYLE.md`).
 - **Commit at the end of each slice**, once build/test pass and the diff has been reviewed —
   this gives every slice a clean rollback point and lets a fresh session `git log` its way
   into context instead of re-deriving it.
