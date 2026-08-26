@@ -18,11 +18,14 @@
 		3B20261D2147993870E8201D /* CreatorGamesRepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5FB3EDC405781139C056F7D1 /* CreatorGamesRepositoryTests.swift */; };
 		3C604470BF16069F28A82319 /* FeedViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4A49DFC6F8877FA35C98A4C /* FeedViewController.swift */; };
 		408A475679740859BEB2C25E /* ModerationStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47E0EA3073D975F11C0C23DC /* ModerationStoreTests.swift */; };
+		5F2B394307D49AFFBAAEDD33 /* WebViewPool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45AAA3521AEA505C0170D32D /* WebViewPool.swift */; };
 		60B318533E0ABB8F6CBDB989 /* CreatorProfileViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECD5BA3085B2A403C1E62D3B /* CreatorProfileViewController.swift */; };
 		68EE159C8E7181A446337882 /* UserGamesPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36B153CC6E6695840031EA93 /* UserGamesPage.swift */; };
+		6CDF9EF2A13BDE11EB189C2C /* PlaybackCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B92E48D69BDDEB05A36E205E /* PlaybackCoordinatorTests.swift */; };
 		82AA56822D97618AF22B985A /* URLDataLoading.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54373F0437923B4B338E387D /* URLDataLoading.swift */; };
 		86800D7CAF74B7CB5E1D98C7 /* ToastMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2FBBD98A60CD24960D22ABC /* ToastMessage.swift */; };
 		8AF79D56E83C545DF15E927B /* StubDataLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 503E0EF9F124B8A26D937C1A /* StubDataLoader.swift */; };
+		8D276E6A81AD078A9FA95002 /* PlaybackCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15E6CE6988AE184D0FE10C0B /* PlaybackCoordinator.swift */; };
 		9C185CF244E63068FB67367D /* ToastView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10EB3719862E9DA88CFD662 /* ToastView.swift */; };
 		AB28D2514E0F1A9F11F083BE /* FeedItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D469CE6BA9CC94DA0DC0C68 /* FeedItem.swift */; };
 		AB77D28C74F71FA9DFCF19EA /* CreatorProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 192FD4C6A368594C176DB2BE /* CreatorProfileView.swift */; };
@@ -54,6 +57,7 @@
 		01549926AEFD556AB5314754 /* CreatorProfileViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreatorProfileViewModelTests.swift; sourceTree = "<group>"; };
 		050A1687F32A5C12A890B931 /* FeedModerationDemo.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = FeedModerationDemo.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		11EC99963A0EE067E8911DBF /* VisibleItemsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VisibleItemsTests.swift; sourceTree = "<group>"; };
+		15E6CE6988AE184D0FE10C0B /* PlaybackCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackCoordinator.swift; sourceTree = "<group>"; };
 		16E008FBD88EE77A3BCE1F13 /* ModerationStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModerationStore.swift; sourceTree = "<group>"; };
 		192FD4C6A368594C176DB2BE /* CreatorProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreatorProfileView.swift; sourceTree = "<group>"; };
 		2BCAFE3D79FDF3E3F2EE8EB6 /* BlockUserRequest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BlockUserRequest.swift; sourceTree = "<group>"; };
@@ -61,6 +65,7 @@
 		2CAEE467DC123A294A188439 /* FeedModerationDemoTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = FeedModerationDemoTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		36B153CC6E6695840031EA93 /* UserGamesPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserGamesPage.swift; sourceTree = "<group>"; };
 		3716468484048E10CB4A6169 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		45AAA3521AEA505C0170D32D /* WebViewPool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebViewPool.swift; sourceTree = "<group>"; };
 		47E0EA3073D975F11C0C23DC /* ModerationStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModerationStoreTests.swift; sourceTree = "<group>"; };
 		503E0EF9F124B8A26D937C1A /* StubDataLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StubDataLoader.swift; sourceTree = "<group>"; };
 		54373F0437923B4B338E387D /* URLDataLoading.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = URLDataLoading.swift; sourceTree = "<group>"; };
@@ -73,6 +78,7 @@
 		9C058FDF10C67F32AB1DEBA9 /* FeedRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedRouter.swift; sourceTree = "<group>"; };
 		A3B482C1F19DE9CD3EFF81F3 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		A6F390EAE87151D3D3FB6B14 /* CreatorGamesRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreatorGamesRepository.swift; sourceTree = "<group>"; };
+		B92E48D69BDDEB05A36E205E /* PlaybackCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackCoordinatorTests.swift; sourceTree = "<group>"; };
 		BED9DC50F92A6F994E83F48D /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
 		C10EB3719862E9DA88CFD662 /* ToastView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToastView.swift; sourceTree = "<group>"; };
 		C22D9831D9A9F4E3BD8A91ED /* FeedViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedViewModelTests.swift; sourceTree = "<group>"; };
@@ -181,6 +187,7 @@
 				C22D9831D9A9F4E3BD8A91ED /* FeedViewModelTests.swift */,
 				5DFDB01F63F13B926A704B7A /* ModelDecodingTests.swift */,
 				47E0EA3073D975F11C0C23DC /* ModerationStoreTests.swift */,
+				B92E48D69BDDEB05A36E205E /* PlaybackCoordinatorTests.swift */,
 				11EC99963A0EE067E8911DBF /* VisibleItemsTests.swift */,
 				FC1368F62F6E856409CA43B7 /* Support */,
 			);
@@ -196,8 +203,10 @@
 				9C058FDF10C67F32AB1DEBA9 /* FeedRouter.swift */,
 				C4A49DFC6F8877FA35C98A4C /* FeedViewController.swift */,
 				5DEEC5AA1C3EE93D308B1D5E /* FeedViewModel.swift */,
+				15E6CE6988AE184D0FE10C0B /* PlaybackCoordinator.swift */,
 				E2FBBD98A60CD24960D22ABC /* ToastMessage.swift */,
 				C10EB3719862E9DA88CFD662 /* ToastView.swift */,
+				45AAA3521AEA505C0170D32D /* WebViewPool.swift */,
 			);
 			path = Feed;
 			sourceTree = "<group>";
@@ -296,6 +305,7 @@
 				3C604470BF16069F28A82319 /* FeedViewController.swift in Sources */,
 				224B89352ABB3C829A8C97B8 /* FeedViewModel.swift in Sources */,
 				F85D6E117297FB7CB3E1783E /* ModerationStore.swift in Sources */,
+				8D276E6A81AD078A9FA95002 /* PlaybackCoordinator.swift in Sources */,
 				ED6DE4617887DBCE68A30A47 /* ReportContentRequest.swift in Sources */,
 				DD756F9765C0D64ED7E428A8 /* SceneDelegate.swift in Sources */,
 				86800D7CAF74B7CB5E1D98C7 /* ToastMessage.swift in Sources */,
@@ -304,6 +314,7 @@
 				68EE159C8E7181A446337882 /* UserGamesPage.swift in Sources */,
 				B07954FCDABFBC3CDA601AC6 /* UserProfile.swift in Sources */,
 				BB74C7E7F202652BC521CC2A /* VisibleItems.swift in Sources */,
+				5F2B394307D49AFFBAAEDD33 /* WebViewPool.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -318,6 +329,7 @@
 				DE3C0D8DBB19F373662FD96A /* FeedViewModelTests.swift in Sources */,
 				C5EFE3DE8F97EBC53C7AD04D /* ModelDecodingTests.swift in Sources */,
 				408A475679740859BEB2C25E /* ModerationStoreTests.swift in Sources */,
+				6CDF9EF2A13BDE11EB189C2C /* PlaybackCoordinatorTests.swift in Sources */,
 				8AF79D56E83C545DF15E927B /* StubDataLoader.swift in Sources */,
 				00EFC6880302B167410DAF71 /* VisibleItemsTests.swift in Sources */,
 			);

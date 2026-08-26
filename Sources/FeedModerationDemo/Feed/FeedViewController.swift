@@ -16,6 +16,9 @@ final class FeedViewController: UIViewController {
     private lazy var dataSource = makeDataSource()
     private var itemsByID: [String: FeedItem] = [:]
 
+    private let webViewPool = WebViewPool()
+    private let playbackCoordinator = PlaybackCoordinator()
+
     private var cancellables = Set<AnyCancellable>()
 
     init(viewModel: FeedViewModel, router: FeedRouter) {
@@ -38,6 +41,7 @@ final class FeedViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .systemBackground
+        webViewPool.delegate = self
         setUpCollectionView()
         bindViewModel()
         viewModel.loadInitialPageIfNeeded()
@@ -99,7 +103,19 @@ final class FeedViewController: UIViewController {
     private func bindViewModel() {
         viewModel.$visibleItems
             .sink { [weak self] items in
-                self?.applySnapshot(for: items)
+                guard let self else { return }
+                // Reconcile playback only when the currently-playing item actually dropped
+                // out of the list, or nothing has ever played yet (cold-start autoplay) —
+                // not on every snapshot change, or an unrelated page-fetch mid-flick would
+                // hijack playback onto whatever's transiently centered (`ARCHITECTURE.md` §6).
+                let stillPresent = self.playbackCoordinator.currentlyPlayingID
+                    .map { id in items.contains { $0.gameID == id } }
+                let needsReconciliation = stillPresent == false || (stillPresent == nil && !items.isEmpty)
+                self.applySnapshot(for: items) {
+                    if needsReconciliation {
+                        self.handleSettle()
+                    }
+                }
             }
             .store(in: &cancellables)
 
@@ -111,22 +127,91 @@ final class FeedViewController: UIViewController {
             .store(in: &cancellables)
     }
 
-    private func applySnapshot(for items: [FeedItem]) {
+    private func applySnapshot(for items: [FeedItem], completion: (() -> Void)? = nil) {
         itemsByID = Dictionary(uniqueKeysWithValues: items.map { ($0.gameID, $0) })
 
         var snapshot = NSDiffableDataSourceSnapshot<Section, String>()
         snapshot.appendSections([.main])
         snapshot.appendItems(items.map(\.gameID), toSection: .main)
-        dataSource.apply(snapshot, animatingDifferences: true)
+        dataSource.apply(snapshot, animatingDifferences: true, completion: completion)
     }
 
     private func showToast(_ message: ToastMessage) {
         ToastView(text: message.text).show(in: view)
+    }
+
+    private func cell(for gameID: String) -> FeedItemCell? {
+        guard let indexPath = dataSource.indexPath(for: gameID) else { return nil }
+        return collectionView.cellForItem(at: indexPath) as? FeedItemCell
+    }
+
+    /// The single call site for `sekaiPlay`/`sekaiPause`, invoked from every settle trigger
+    /// (`ARCHITECTURE.md` §6) and from `visibleItems` reconciliation above. Resolving to "no
+    /// centered item" (empty list, or a snapshot mid-transition) is a normal outcome — it
+    /// just pauses without playing anything, never a crash.
+    private func handleSettle() {
+        let centerPoint = CGPoint(x: collectionView.bounds.midX, y: collectionView.bounds.midY)
+        let centeredGameID = collectionView.indexPathForItem(at: centerPoint)
+            .flatMap { dataSource.itemIdentifier(for: $0) }
+
+        let (toPlay, toPause) = playbackCoordinator.settled(on: centeredGameID)
+        if let toPause {
+            cell(for: toPause)?.pause()
+        }
+        if let toPlay {
+            cell(for: toPlay)?.play()
+        }
     }
 }
 
 extension FeedViewController: UICollectionViewDelegate {
     func collectionView(_ collectionView: UICollectionView, willDisplay cell: UICollectionViewCell, forItemAt indexPath: IndexPath) {
         viewModel.loadNextPageIfNeeded(displayingIndex: indexPath.item)
+
+        guard
+            let feedCell = cell as? FeedItemCell,
+            let gameID = dataSource.itemIdentifier(for: indexPath),
+            let item = itemsByID[gameID]
+        else { return }
+
+        let webView = webViewPool.acquireWebView(for: gameID, url: item.gameURL)
+        feedCell.attach(webView: webView, gameID: gameID)
+        if gameID == playbackCoordinator.currentlyPlayingID {
+            feedCell.play()
+        }
+    }
+
+    func collectionView(_ collectionView: UICollectionView, didEndDisplaying cell: UICollectionViewCell, forItemAt indexPath: IndexPath) {
+        guard let feedCell = cell as? FeedItemCell, let gameID = feedCell.assignedGameID else { return }
+        feedCell.pause()
+        webViewPool.release(gameID: gameID)
+        feedCell.detach()
+    }
+
+    func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
+        if !decelerate {
+            handleSettle()
+        }
+    }
+
+    func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
+        handleSettle()
+    }
+
+    func scrollViewDidEndScrollingAnimation(_ scrollView: UIScrollView) {
+        handleSettle()
+    }
+}
+
+extension FeedViewController: WebViewPoolDelegate {
+    func webViewPool(_ pool: WebViewPool, didFinishLoadingGameID gameID: String) {
+        cell(for: gameID)?.markNavigationFinished(for: gameID)
+        if gameID == playbackCoordinator.currentlyPlayingID {
+            cell(for: gameID)?.play()
+        }
+    }
+
+    func webViewPool(_ pool: WebViewPool, didFailLoadingGameID gameID: String) {
+        cell(for: gameID)?.markNavigationFailed(for: gameID)
     }
 }
