@@ -5,6 +5,31 @@ across different `WebViewPool` prefetch-window sizes, so bigger-window-vs-memory
 backed by numbers instead of guesses. `scripts/parse_latency.py` computes summary stats from a
 captured console/log-stream file.
 
+## Summary
+
+| ahead | Pool 并发数 | Latency 中位数 | Hitch 均值 |
+|---|---|---|---|
+| 1 | 3 | 945.4 ms | 187.9 ms |
+| 3 | 5 | 584.9 ms | 160.8 ms |
+| 5 | 7 | 320.5 ms | 157.5 ms |
+| 7 | 9 | 317.8 ms | 64.5 ms |
+| 9 | 11 | 315.4 ms | 32.1 ms |
+
+1. **拐点在 ahead=5，不是越大越好**：延迟中位数从 945ms 一路降到 320ms 就基本触底了，再往上加到 7、9
+   几乎没有进一步收益（318ms、315ms，属于测量噪声范围）。
+2. **本次测试没测出"窗口越大、主线程掉帧越多"的现象**——hitch 数量和强度反而是随 ahead 增大而下降的
+   （187.9ms→32.1ms），推翻了这个实验最初想验证的假设（至少在延迟/hitch 这两个维度上）。
+3. **但这不代表内存开销是免费的**——这次全程没测实际内存占用（RSS）。ahead=9 同时开 11 个 5MB 的
+   WKWebView，内存压力大概率比 ahead=1 高很多，只是在 Simulator 上（不会像真机那样触发内存紧张/
+   jetsam）体现不出来。要验证真实的"内存 vs 性能"权衡，还需要用 Instruments 的 Allocations/VM
+   Tracker（记得开 "All Processes"，因为 WebContent 是独立进程）分别测一下这 5 组配置的峰值内存
+   ——这是这份文档目前唯一没回答的部分。
+
+**Decision**: shipped default set to `PrefetchWindow(behind: 1, ahead: 5)` (7 pool slots) —
+see `Sources/FeedModerationDemo/Feed/FeedViewController.swift`.
+
+Full per-run tables, environment notes, and the reasoning behind each point above follow below.
+
 ## Method (current — supersedes the earlier frequency-based draft of this doc)
 
 - **`behind` is fixed at 1**; only `ahead` varies: **1, 3, 5, 7, 9** (5 groups). Slot count =
