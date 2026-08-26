@@ -5,13 +5,25 @@ import UIKit
 /// given).
 final class FeedRouter {
     private weak var navigationController: UINavigationController?
+    private let apiClient: APIClient
+    private let moderationStore: ModerationStore
 
-    init(navigationController: UINavigationController) {
+    init(navigationController: UINavigationController, apiClient: APIClient, moderationStore: ModerationStore) {
         self.navigationController = navigationController
+        self.apiClient = apiClient
+        self.moderationStore = moderationStore
     }
 
     func showCreatorProfile(creatorID: String, creatorName: String) {
-        let placeholder = CreatorProfilePlaceholderViewController(creatorID: creatorID, creatorName: creatorName)
-        navigationController?.pushViewController(placeholder, animated: true)
+        let gamesRepository = CreatorGamesRepository(apiClient: apiClient, userID: creatorID)
+        let viewModel = CreatorProfileViewModel(
+            creatorID: creatorID,
+            creatorName: creatorName,
+            gamesRepository: gamesRepository,
+            moderationStore: moderationStore,
+            apiClient: apiClient
+        )
+        let viewController = CreatorProfileViewController(viewModel: viewModel)
+        navigationController?.pushViewController(viewController, animated: true)
     }
 }

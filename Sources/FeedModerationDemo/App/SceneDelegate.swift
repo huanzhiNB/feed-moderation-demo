@@ -21,7 +21,11 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         )
 
         let navigationController = UINavigationController()
-        let feedRouter = FeedRouter(navigationController: navigationController)
+        let feedRouter = FeedRouter(
+            navigationController: navigationController,
+            apiClient: apiClient,
+            moderationStore: moderationStore
+        )
         let feedViewController = FeedViewController(viewModel: feedViewModel, router: feedRouter)
         navigationController.viewControllers = [feedViewController]
 
